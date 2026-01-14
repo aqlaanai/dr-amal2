@@ -1,0 +1,258 @@
+name: 🐛 Bug Report
+description: Report a bug in Dr Amal Clinical OS
+title: "[BUG] "
+labels: ["type:bug", "status:triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report Governance Rules
+        
+        ❌ **REJECT IF:**
+        - State is not specified
+        - Role is missing
+        - Reproducibility is unclear
+        - Severity is not assessed
+        
+        ✅ **REQUIRED:**
+        - Clear observed vs expected behavior
+        - State and role context
+        - Reproducible steps
+        - Severity classification
+
+  - type: textarea
+    id: observed-behavior
+    attributes:
+      label: 1. Observed Behavior
+      description: What is happening? Be specific and factual.
+      placeholder: |
+        Example:
+        When a provider attempts to finalize a clinical note in the "active" session state,
+        the "Finalize Note" button is enabled but clicking it produces an error:
+        "Cannot finalize note: session not in valid state"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 2. Expected Behavior
+      description: What should happen instead?
+      placeholder: |
+        Example:
+        According to STATE_MACHINES.md, clinical notes in "draft" state can be finalized
+        when the session is in "active" state. The note should transition to "finalized"
+        and become immutable.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-role
+    attributes:
+      label: 3. Affected Role
+      description: Which role experiences this bug?
+      options:
+        - Provider
+        - Admin
+        - Caregiver
+        - All roles
+        - Unknown (needs investigation)
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-state
+    attributes:
+      label: 4. Affected State(s)
+      description: In which state(s) does this bug occur? Reference STATE_MACHINES.md
+      placeholder: |
+        Example:
+        session.status = "active"
+        clinical_note.status = "draft"
+        
+        Bug does NOT occur when:
+        - session.status = "ended" (button correctly disabled)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected-domains
+    attributes:
+      label: 5. Affected Domain(s)
+      description: Which backend domain(s) are involved?
+      options:
+        - label: identity (auth, users, tenants)
+        - label: patients (patient records)
+        - label: sessions (live consultations)
+        - label: clinical-notes (SOAP notes)
+        - label: prescriptions (medications)
+        - label: labs (lab orders/results)
+        - label: referrals (specialist referrals)
+        - label: audit (audit logs)
+        - label: AI (AI assistant)
+        - label: Frontend only
+        - label: Unknown (needs investigation)
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 6. Steps to Reproduce
+      description: Provide detailed, numbered steps to reproduce this bug
+      placeholder: |
+        1. Log in as Provider (role = provider)
+        2. Navigate to Patient Overview
+        3. Start a new session (session.status = "active")
+        4. Create a clinical note (clinical_note.status = "draft")
+        5. Fill in SOAP fields (all required fields completed)
+        6. Click "Finalize Note" button
+        7. Observe error message in console and UI
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: 7. Reproducibility
+      description: How consistently can you reproduce this?
+      options:
+        - "Always (100%)"
+        - "Often (>50%)"
+        - "Sometimes (10-50%)"
+        - "Rarely (<10%)"
+        - "Once (cannot reproduce)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 8. Severity
+      description: Assess the impact of this bug
+      options:
+        - "CRITICAL - Safety issue / Data loss / System unusable"
+        - "HIGH - Major feature broken / Workflow blocked"
+        - "MEDIUM - Feature partially works / Workaround exists"
+        - "LOW - Cosmetic / Minor inconvenience"
+    validations:
+      required: true
+
+  - type: textarea
+    id: severity-justification
+    attributes:
+      label: 8a. Severity Justification
+      description: Explain why you chose this severity level
+      placeholder: |
+        Example:
+        Severity: HIGH
+        
+        Justification:
+        - Providers cannot finalize clinical notes, which blocks end-of-session workflow
+        - No workaround available (cannot finalize via alternative method)
+        - Does not affect patient safety directly (notes are saved as drafts)
+        - Does affect clinical workflow significantly
+    validations:
+      required: true
+
+  - type: dropdown
+    id: clinical-safety-impact
+    attributes:
+      label: 9. Clinical Safety Impact
+      description: Does this bug affect patient safety?
+      options:
+        - "YES - Direct safety impact (wrong data, incorrect treatment)"
+        - "MAYBE - Indirect impact (delayed treatment, missed information)"
+        - "NO - No clinical safety impact"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 10. Environment
+      description: Where does this bug occur?
+      placeholder: |
+        Environment: Development / Staging / Production
+        Browser: Chrome 131.0 / Safari 17.2 / Firefox 122.0
+        OS: macOS 14.2 / Windows 11 / iOS 17
+        Backend version: v2.0.0-alpha.3
+        Frontend version: v2.0.0-alpha.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: 11. Error Logs / Screenshots
+      description: Provide console errors, backend logs, or screenshots
+      placeholder: |
+        Console error:
+        ```
+        POST /api/clinical-notes/123/finalize 400 Bad Request
+        {
+          "error": "ValidationError",
+          "message": "Cannot finalize note: session not in valid state",
+          "context": {
+            "sessionId": "456",
+            "sessionStatus": "active",
+            "noteStatus": "draft"
+          }
+        }
+        ```
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 12. Workaround
+      description: Is there a temporary workaround? If yes, describe it.
+      placeholder: |
+        Example:
+        NO - No workaround available. Notes remain in "draft" state indefinitely.
+        
+        OR
+        
+        YES - Provider can manually archive session, then finalize note from Patient Overview.
+        This is not ideal but unblocks the workflow.
+
+  - type: textarea
+    id: suspected-cause
+    attributes:
+      label: 13. Suspected Cause (Optional)
+      description: If you have investigated, what might be causing this?
+      placeholder: |
+        Example:
+        Possible cause: Backend validation in clinical-notes.service.ts checks for
+        session.status === "ended" instead of "active" before allowing finalization.
+        
+        Relevant code: backend/modules/clinical-notes/clinical-notes.service.ts:145
+
+  - type: dropdown
+    id: sprint-priority
+    attributes:
+      label: 14. Sprint Priority
+      description: When should this be fixed?
+      options:
+        - "URGENT - Fix immediately (blocking critical workflow)"
+        - "HIGH - Fix in current sprint"
+        - "MEDIUM - Fix in next sprint"
+        - "LOW - Fix when capacity allows"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## Before Submitting
+        
+        ✅ **CHECKLIST:**
+        - [ ] I have specified the affected role
+        - [ ] I have documented the affected state(s)
+        - [ ] I have provided clear reproduction steps
+        - [ ] I have assessed severity honestly
+        - [ ] I have assessed clinical safety impact
+        - [ ] I have included error logs or screenshots
+        
+        ⚠️ **Issues missing required information will be closed.**

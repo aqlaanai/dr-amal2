@@ -1,0 +1,241 @@
+name: 📚 Documentation Update
+description: Update or add documentation
+title: "[DOCS] "
+labels: ["type:docs", "status:triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Documentation Update Rules
+        
+        ❌ **REJECT IF:**
+        - "Update docs" without specifying what changed
+        - No clear reason for the update
+        
+        ✅ **REQUIRED:**
+        - Clear explanation of what changed
+        - Why the documentation needs updating
+        - Which specific docs are affected
+        
+        💡 **PHILOSOPHY:**
+        - Documentation is part of the product
+        - Outdated docs are worse than no docs
+        - Every code change should update relevant docs
+
+  - type: dropdown
+    id: update-type
+    attributes:
+      label: 1. Update Type
+      description: What kind of documentation update is this?
+      options:
+        - "Code change → Docs update (code changed, docs need sync)"
+        - "New feature → New docs (feature added, needs documentation)"
+        - "Clarification (docs exist but are unclear)"
+        - "Correction (docs are incorrect)"
+        - "New documentation (docs don't exist for existing feature)"
+        - "Deprecation notice (feature being removed/replaced)"
+        - "Architecture decision (new ADR or architecture update)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-changed
+    attributes:
+      label: 2. What Changed?
+      description: What code, feature, or behavior changed that requires doc updates?
+      placeholder: |
+        Example:
+        
+        Code change:
+        - PR #456 added session "paused" state
+        - Session can now be paused and resumed by provider
+        - New state transition: active → paused → active
+        
+        This change affects STATE_MACHINES.md and USER_JOURNEYS.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-update
+    attributes:
+      label: 3. Why Update?
+      description: Why do the docs need updating?
+      placeholder: |
+        Example:
+        
+        STATE_MACHINES.md currently documents session states as:
+        - draft → active → ended
+        
+        With the new "paused" state, this is incomplete and misleading.
+        Developers following STATE_MACHINES.md will not know about the pause functionality.
+        
+        USER_JOURNEYS.md describes the provider workflow but does not include
+        the pause/resume scenario.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected-docs
+    attributes:
+      label: 4. Affected Documentation
+      description: Which documentation files need updating?
+      options:
+        - label: STATE_MACHINES.md
+        - label: ROLE_BASED_UI.md
+        - label: USER_JOURNEYS.md
+        - label: API_CONTRACTS.md
+        - label: AI_ASSISTANT_SPEC.md
+        - label: BACKEND_ARCHITECTURE.md
+        - label: DATABASE_SCHEMA.md
+        - label: TECH_STACK_VALIDATION.md
+        - label: AI_IMPLEMENTATION_PLAN.md
+        - label: REPO_STRUCTURE.md
+        - label: SPRINT_BREAKDOWN.md
+        - label: PR_REVIEW_CHECKLIST.md
+        - label: README.md
+        - label: CONTRIBUTING.md
+        - label: Other (specify below)
+
+  - type: textarea
+    id: specific-sections
+    attributes:
+      label: 5. Specific Sections to Update
+      description: Which specific sections or lines need updating?
+      placeholder: |
+        Example:
+        
+        STATE_MACHINES.md:
+        - Section "Session Status State Machine" (lines 120-145)
+        - Add new state: "paused"
+        - Add transitions: active → paused, paused → active
+        - Add guard: only provider can pause
+        
+        USER_JOURNEYS.md:
+        - Section "Provider Journey - Live Session" (lines 200-250)
+        - Add step: "Provider pauses session to review labs"
+        - Add step: "Provider resumes session"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-changes
+    attributes:
+      label: 6. Proposed Changes
+      description: What specifically should be added/changed in the docs?
+      placeholder: |
+        Example:
+        
+        STATE_MACHINES.md - Session Status State Machine:
+        
+        Add new state definition:
+        ```
+        paused:
+          description: Session temporarily paused by provider
+          allowed_from: [active]
+          allowed_to: [active, ended]
+          who_can_transition: [provider]
+          constraints:
+            - Patient must remain in session
+            - Timer continues running
+            - No clinical actions allowed while paused
+        ```
+        
+        Update state diagram to show active ↔ paused bidirectional transition.
+
+  - type: dropdown
+    id: doc-category
+    attributes:
+      label: 7. Documentation Category
+      description: What type of documentation is being updated?
+      options:
+        - "Architecture (system design, patterns, principles)"
+        - "API / Contracts (endpoint specs, request/response formats)"
+        - "State Machines / Workflows (state diagrams, transitions)"
+        - "Database / Schema (table definitions, constraints)"
+        - "User Journeys / Flows (role-based workflows)"
+        - "Development / Setup (how to run, build, test)"
+        - "Security / Compliance (auth, authorization, audit)"
+        - "AI / Assistant (AI boundaries, prompts, policies)"
+        - "Sprint / Project Management (sprint plans, checklists)"
+        - "Other"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: 8. Urgency
+      description: When should this documentation be updated?
+      options:
+        - "URGENT - Docs are blocking current work"
+        - "HIGH - Docs should be updated before next sprint"
+        - "MEDIUM - Docs should be updated within 1-2 weeks"
+        - "LOW - Docs can be updated when capacity allows"
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact-if-not-updated
+    attributes:
+      label: 9. Impact if Not Updated
+      description: What happens if these docs are not updated?
+      placeholder: |
+        Example:
+        
+        If STATE_MACHINES.md is not updated:
+        - Developers will not know about the "paused" state
+        - Frontend developers may implement incorrect state transitions
+        - Backend developers may not enforce paused state constraints
+        - PR reviews will not catch missing pause-related logic
+        
+        If USER_JOURNEYS.md is not updated:
+        - QA will not test pause/resume scenarios
+        - Product team will not know about the feature
+        - User training materials will be incomplete
+
+  - type: textarea
+    id: related-prs
+    attributes:
+      label: 10. Related PRs / Issues
+      description: Which PRs or issues introduced this change?
+      placeholder: |
+        Example:
+        
+        Related:
+        - PR #456 (Implemented session pause feature)
+        - Issue #123 (Feature request for session pause)
+
+  - type: dropdown
+    id: requires-review
+    attributes:
+      label: 11. Requires Technical Review?
+      description: Should a domain expert review these doc changes?
+      options:
+        - "YES - Architecture or technical accuracy needs review"
+        - "NO - Simple clarification or formatting change"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## Before Submitting
+        
+        ✅ **CHECKLIST:**
+        - [ ] I have specified exactly what changed
+        - [ ] I have identified which docs need updating
+        - [ ] I have specified which sections to update
+        - [ ] I have proposed concrete changes
+        - [ ] I have assessed impact if not updated
+        
+        💡 **DOCUMENTATION PHILOSOPHY:**
+        - Documentation is NOT optional
+        - Code without docs is incomplete
+        - Outdated docs create confusion and bugs
+        - Every code PR should update relevant docs
+        
+        ⚠️ **Issues missing required information will be closed.**

@@ -1,0 +1,252 @@
+name: 🔒 Security / Compliance Issue
+description: Report a security vulnerability or compliance concern
+title: "[SECURITY] "
+labels: ["type:security", "priority:critical", "status:triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ SECURITY ISSUE RULES
+        
+        🔴 **CRITICAL:**
+        - This template is for security issues ONLY
+        - Issues created here are automatically labeled as CRITICAL
+        - For private vulnerabilities, use GitHub Security Advisories instead
+        
+        🔒 **CONFIDENTIALITY:**
+        - Do NOT include sensitive data (passwords, API keys, patient data)
+        - Do NOT include exploit code that could be weaponized
+        - If in doubt, report privately via Security Advisories
+        
+        ✅ **REQUIRED:**
+        - Clear risk description
+        - Affected domain(s)
+        - Potential impact assessment
+        - Data exposure risk
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 1. Security Issue Type
+      description: What type of security issue is this?
+      options:
+        - "Authentication / Authorization bypass"
+        - "Data exposure / Privacy violation"
+        - "Cross-tenant data leak"
+        - "Immutability violation (audit trail tampering)"
+        - "AI boundary violation (AI writing to clinical data)"
+        - "Injection vulnerability (SQL, XSS, etc.)"
+        - "Secrets exposed (API keys, tokens in code/logs)"
+        - "Session management issue"
+        - "Compliance violation (HIPAA, data retention)"
+        - "Other (describe below)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk-description
+    attributes:
+      label: 2. Risk Description
+      description: What is the security risk? Be specific but avoid exploit details.
+      placeholder: |
+        Example:
+        The /api/patients/:id endpoint does NOT verify tenant isolation.
+        A provider from Clinic A can access patient records from Clinic B by
+        guessing patient IDs.
+        
+        This violates BACKEND_ARCHITECTURE.md section on tenant isolation.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected-domains
+    attributes:
+      label: 3. Affected Domain(s)
+      description: Which backend domain(s) are affected?
+      options:
+        - label: identity (auth, users, tenants)
+        - label: patients (patient records)
+        - label: sessions (live consultations)
+        - label: clinical-notes (SOAP notes)
+        - label: prescriptions (medications)
+        - label: labs (lab orders/results)
+        - label: referrals (specialist referrals)
+        - label: audit (audit logs)
+        - label: AI (AI assistant)
+        - label: Frontend (client-side)
+        - label: Infrastructure (database, deployment)
+
+  - type: textarea
+    id: potential-impact
+    attributes:
+      label: 4. Potential Impact
+      description: What could happen if this is exploited?
+      placeholder: |
+        Example:
+        
+        Patient Privacy: HIGH
+        - Providers could access patients outside their clinic
+        - Full medical history exposed (notes, prescriptions, labs)
+        
+        Clinical Safety: MEDIUM
+        - Providers could view incorrect patient data
+        - Could lead to treatment based on wrong patient's history
+        
+        Compliance: CRITICAL
+        - Direct HIPAA violation (unauthorized access to PHI)
+        - Could result in regulatory fines
+        
+        Business Impact: HIGH
+        - Loss of trust from clinics
+        - Potential legal liability
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data-exposure-risk
+    attributes:
+      label: 5. Data Exposure Risk
+      description: What type of data could be exposed?
+      options:
+        - "PHI - Protected Health Information (patient medical data)"
+        - "PII - Personal Identifiable Information (names, emails, addresses)"
+        - "Authentication credentials (passwords, tokens, API keys)"
+        - "Business data (clinic info, provider schedules)"
+        - "System data (internal configs, DB structure)"
+        - "No data exposure (availability issue only)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: exploitability
+    attributes:
+      label: 6. Exploitability
+      description: How easy is it to exploit this?
+      options:
+        - "EASY - No special access required, obvious attack vector"
+        - "MODERATE - Requires authenticated access or some technical knowledge"
+        - "DIFFICULT - Requires privileged access and advanced techniques"
+        - "THEORETICAL - No known exploit path, but architecturally concerning"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: urgency-level
+    attributes:
+      label: 7. Urgency Level
+      description: How quickly must this be fixed?
+      options:
+        - "CRITICAL - Fix immediately (active exploitation possible)"
+        - "HIGH - Fix within 24-48 hours (high risk, no known exploitation)"
+        - "MEDIUM - Fix within 1 week (moderate risk)"
+        - "LOW - Fix in next sprint (low risk or theoretical)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-verify
+    attributes:
+      label: 8. Steps to Verify (Non-Exploitative)
+      description: How can the team verify this issue WITHOUT causing harm?
+      placeholder: |
+        Example:
+        
+        1. Create two test tenants (Clinic A, Clinic B)
+        2. Create one test patient in each clinic
+        3. Log in as Provider from Clinic A
+        4. Note the patient ID for Clinic B's patient (e.g., 999)
+        5. Call: GET /api/patients/999 (Clinic B's patient ID)
+        6. Observe: API returns full patient record WITHOUT tenant check
+        7. Expected: API should return 403 Forbidden
+        
+        NOTE: Use test data only. Do NOT test on production.
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-architecture
+    attributes:
+      label: 9. Affected Architecture / Documentation
+      description: Which architectural principles or docs does this violate?
+      placeholder: |
+        Example:
+        
+        Violates:
+        - BACKEND_ARCHITECTURE.md → "3. Tenant Isolation (Absolute)"
+        - DATABASE_SCHEMA.md → "Every query MUST filter by tenantId"
+        - TECH_STACK_VALIDATION.md → "Risk: Cross-tenant data leak"
+        
+        Root cause:
+        - patients.controller.ts does not use @TenantScope() guard
+        - Prisma query does not include tenantId filter
+
+  - type: textarea
+    id: proposed-mitigation
+    attributes:
+      label: 10. Proposed Mitigation
+      description: How should this be fixed?
+      placeholder: |
+        Example:
+        
+        Immediate mitigation:
+        - Add tenantId filter to ALL queries in patients.service.ts
+        - Apply @TenantScope() guard to all patient endpoints
+        - Add integration test for cross-tenant access denial
+        
+        Long-term prevention:
+        - Create Prisma middleware that auto-injects tenantId
+        - Audit all endpoints for tenant isolation
+        - Add automated security tests to CI/CD
+    validations:
+      required: true
+
+  - type: textarea
+    id: compliance-notes
+    attributes:
+      label: 11. Compliance Notes
+      description: Does this affect HIPAA, data retention, or other regulations?
+      placeholder: |
+        Example:
+        
+        HIPAA Impact: YES
+        - 45 CFR 164.308(a)(4) - Access controls violated
+        - 45 CFR 164.312(a)(1) - Unique user identification bypassed
+        
+        Required actions:
+        - Document incident (even if not exploited)
+        - Review audit logs for unauthorized access
+        - Notify compliance officer
+
+  - type: dropdown
+    id: public-disclosure
+    attributes:
+      label: 12. Public Disclosure
+      description: Should this issue be public or private?
+      options:
+        - "PUBLIC - Low severity, no sensitive details, safe to discuss openly"
+        - "PRIVATE - High severity, sensitive details, restrict access"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## Before Submitting
+        
+        ✅ **CHECKLIST:**
+        - [ ] I have NOT included sensitive data (passwords, keys, patient info)
+        - [ ] I have NOT included weaponizable exploit code
+        - [ ] I have assessed impact on patient privacy and clinical safety
+        - [ ] I have documented which architecture docs this violates
+        - [ ] I have proposed a mitigation plan
+        - [ ] I have verified this on test data ONLY
+        
+        🔴 **HIGH-SEVERITY ISSUES:**
+        - If this issue involves active exploitation, contact the team immediately
+        - If this issue exposes patient data, consider reporting via Security Advisories
+        
+        ⚠️ **Issues missing required information will be closed.**

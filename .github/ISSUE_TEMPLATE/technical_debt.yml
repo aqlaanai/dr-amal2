@@ -1,0 +1,269 @@
+name: 🔧 Technical Debt
+description: Document technical debt that needs cleanup
+title: "[DEBT] "
+labels: ["type:debt", "status:triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Technical Debt Governance Rules
+        
+        ❌ **REJECT IF:**
+        - "Refactor" without justification
+        - No clear risk if ignored
+        - Vague or subjective complaints ("code is messy")
+        
+        ✅ **REQUIRED:**
+        - Clear explanation of why this is debt
+        - Concrete risk if ignored
+        - Affected domain(s)
+        - Proposed cleanup plan
+        
+        💡 **PHILOSOPHY:**
+        - Debt is accepted only if justified
+        - Not all code needs to be "perfect"
+        - Focus on debt that increases risk or blocks progress
+
+  - type: dropdown
+    id: debt-type
+    attributes:
+      label: 1. Debt Type
+      description: What kind of technical debt is this?
+      options:
+        - "Architecture violation (breaks documented patterns)"
+        - "Code duplication (same logic in multiple places)"
+        - "Missing tests (untested critical path)"
+        - "Outdated dependencies (security or compatibility risk)"
+        - "Performance issue (slow queries, memory leaks)"
+        - "Missing documentation (undocumented complex logic)"
+        - "Temporary workaround (// TODO or // HACK that stayed)"
+        - "Dead code (unused functions, files, dependencies)"
+        - "Other (describe below)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-is-debt
+    attributes:
+      label: 2. What is the debt?
+      description: Describe the technical debt clearly and factually
+      placeholder: |
+        Example:
+        
+        The prescriptions.service.ts file contains 3 different implementations of
+        "check if prescription can be modified":
+        
+        - Line 145: canModifyPrescription() - checks role + state
+        - Line 289: isPrescriptionEditable() - checks role only
+        - Line 402: validatePrescriptionUpdate() - checks state only
+        
+        This violates the Single Responsibility Principle and creates inconsistency
+        in authorization logic.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-is-debt
+    attributes:
+      label: 3. Why is this debt?
+      description: Explain why this is problematic (not just "it's ugly")
+      placeholder: |
+        Example:
+        
+        This is debt because:
+        
+        1. Authorization inconsistency risk
+           - Different parts of the code use different checks
+           - A prescription might be editable in one context but not another
+        
+        2. Maintenance burden
+           - Changes to authorization rules must be applied in 3 places
+           - High risk of forgetting one location
+        
+        3. Violates architecture
+           - BACKEND_ARCHITECTURE.md requires centralized authorization
+           - All authorization should use guards, not inline checks
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk-if-ignored
+    attributes:
+      label: 4. Risk if Ignored
+      description: What happens if this debt is NOT cleaned up?
+      placeholder: |
+        Example:
+        
+        Short-term risk (1-3 months):
+        - Developers will continue adding inline authorization checks
+        - Authorization logic will become even more fragmented
+        
+        Medium-term risk (3-6 months):
+        - Authorization bugs will increase
+        - Difficult to audit for security compliance
+        
+        Long-term risk (6+ months):
+        - Authorization may become unreliable
+        - Major refactor required (high cost, high risk)
+        - Potential security vulnerability (authorization bypass)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk-severity
+    attributes:
+      label: 4a. Risk Severity
+      description: How severe is the risk if this debt is ignored?
+      options:
+        - "CRITICAL - Security, safety, or data integrity risk"
+        - "HIGH - Blocks future features or increases bug rate significantly"
+        - "MEDIUM - Slows development or creates moderate maintenance burden"
+        - "LOW - Minor inconvenience or aesthetic issue"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected-domains
+    attributes:
+      label: 5. Affected Domain(s)
+      description: Which domain(s) or area(s) are affected?
+      options:
+        - label: identity (auth, users, tenants)
+        - label: patients (patient records)
+        - label: sessions (live consultations)
+        - label: clinical-notes (SOAP notes)
+        - label: prescriptions (medications)
+        - label: labs (lab orders/results)
+        - label: referrals (specialist referrals)
+        - label: audit (audit logs)
+        - label: AI (AI assistant)
+        - label: Frontend (client-side)
+        - label: Infrastructure (database, deployment, CI/CD)
+        - label: Documentation
+        - label: Testing
+
+  - type: textarea
+    id: proposed-cleanup
+    attributes:
+      label: 6. Proposed Cleanup
+      description: How should this debt be cleaned up?
+      placeholder: |
+        Example:
+        
+        Proposed cleanup:
+        
+        1. Create a centralized PrescriptionAuthorizationService
+           - Single method: canModifyPrescription(user, prescription)
+           - Implements role + state + tenant checks
+           - Located: backend/modules/prescriptions/authorization/
+        
+        2. Replace all 3 inline checks with service calls
+           - Remove canModifyPrescription() at line 145
+           - Remove isPrescriptionEditable() at line 289
+           - Remove validatePrescriptionUpdate() at line 402
+           - Use new service in all locations
+        
+        3. Add unit tests for authorization service
+           - Test all role + state combinations
+           - Test tenant isolation
+           - Coverage: >90%
+        
+        4. Update BACKEND_ARCHITECTURE.md if needed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cleanup-effort
+    attributes:
+      label: 7. Cleanup Effort Estimate
+      description: How much work is required to clean this up?
+      options:
+        - "Small (1-2 hours, single file)"
+        - "Medium (1-3 days, multiple files in one domain)"
+        - "Large (1-2 weeks, multiple domains or architectural change)"
+        - "Very Large (>2 weeks, major refactor or migration)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: 8. Urgency
+      description: When should this be cleaned up?
+      options:
+        - "URGENT - Clean up immediately (blocking or high-risk)"
+        - "HIGH - Clean up in current/next sprint"
+        - "MEDIUM - Clean up within 1-2 months"
+        - "LOW - Clean up when capacity allows"
+    validations:
+      required: true
+
+  - type: textarea
+    id: architecture-impact
+    attributes:
+      label: 9. Architecture Impact
+      description: Does this debt violate documented architecture or patterns?
+      placeholder: |
+        Example:
+        
+        Violates:
+        - BACKEND_ARCHITECTURE.md → "Authorization must be centralized in guards"
+        - REPO_STRUCTURE.md → "Authorization logic in /auth/guards/, not in services"
+        
+        Does NOT violate:
+        - No database schema changes required
+        - No API contract changes
+
+  - type: textarea
+    id: related-issues
+    attributes:
+      label: 10. Related Issues
+      description: Are there other issues or PRs related to this debt?
+      placeholder: |
+        Example:
+        
+        Related:
+        - Issue #123 (Authorization bug in prescriptions)
+        - PR #456 (Added temporary workaround, created this debt)
+        
+        Will unblock:
+        - Issue #789 (Feature requiring consistent authorization)
+
+  - type: textarea
+    id: why-not-done-initially
+    attributes:
+      label: 11. Why wasn't this done correctly initially?
+      description: Understanding root cause prevents future debt
+      placeholder: |
+        Example:
+        
+        Root cause:
+        - Implemented in Sprint 3 when authorization patterns were not yet established
+        - Sprint 6 introduced centralized guards, but prescriptions were not updated
+        
+        Prevention:
+        - PR_REVIEW_CHECKLIST.md now includes architecture alignment check
+        - Will prevent similar issues in future sprints
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## Before Submitting
+        
+        ✅ **CHECKLIST:**
+        - [ ] I have clearly described what the debt is
+        - [ ] I have explained WHY this is debt (not just "it's ugly")
+        - [ ] I have documented the risk if ignored
+        - [ ] I have proposed a concrete cleanup plan
+        - [ ] I have estimated effort and urgency realistically
+        
+        ⚠️ **NOT ALL CODE NEEDS TO BE PERFECT:**
+        - Focus on debt that increases risk or blocks progress
+        - "Could be cleaner" is not sufficient justification
+        - Debt must have concrete, measurable risk
+        
+        ⚠️ **Issues missing required information will be closed.**

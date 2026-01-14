@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/yourorg/dramal2/tree/main/docs
+    about: Read the complete documentation before creating an issue
+  - name: 🔒 Security Vulnerability (Private)
+    url: https://github.com/yourorg/dramal2/security/advisories/new
+    about: Report security vulnerabilities privately

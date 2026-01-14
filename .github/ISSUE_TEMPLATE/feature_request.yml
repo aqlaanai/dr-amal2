@@ -1,0 +1,282 @@
+name: 🚀 Feature Request
+description: Request a new feature or enhancement for Dr Amal Clinical OS
+title: "[FEATURE] "
+labels: ["type:feature", "status:triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request Governance Rules
+        
+        ❌ **REJECT IF:**
+        - States are not mentioned
+        - AI impact is "not sure"
+        - Domain is not specified
+        - Safety implications are ignored
+        
+        ✅ **REQUIRED:**
+        - One feature per issue
+        - Clear impact analysis
+        - Sprint assignment
+        - Safety review
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: 1. Problem Statement
+      description: What is missing? What problem does this solve?
+      placeholder: |
+        Example:
+        Providers cannot view a patient's complete medication history in one screen.
+        They must navigate between Clinical Notes and Prescriptions, which slows down consultations.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-role
+    attributes:
+      label: 2. Who is affected?
+      description: Which role(s) will use this feature?
+      multiple: true
+      options:
+        - Provider
+        - Admin
+        - Caregiver
+    validations:
+      required: true
+
+  - type: textarea
+    id: frontend-impact
+    attributes:
+      label: 3. Frontend Impact
+      description: Which screens are affected? Are new states introduced?
+      placeholder: |
+        Screens affected:
+        - Patient Overview (read-only view)
+        - Live Session (main implementation)
+        
+        New states: NO
+        Modified states: YES (session.active will show medication timeline)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frontend-new-states
+    attributes:
+      label: "3a. Does this introduce NEW states?"
+      description: If YES, you MUST update STATE_MACHINES.md
+      options:
+        - "NO - Uses existing states only"
+        - "YES - New state(s) required (STATE_MACHINES.md must be updated)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: backend-impact
+    attributes:
+      label: 4. Backend Impact
+      description: Is this read-only or does it write data? Which domain(s) are affected?
+      placeholder: |
+        Operation type: Read-only
+        
+        Affected domains:
+        - prescriptions (read)
+        - clinical-notes (read - for context)
+        
+        New endpoints:
+        - GET /patients/:id/medication-timeline
+        
+        Database impact: NO schema changes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backend-operation-type
+    attributes:
+      label: "4a. Operation Type"
+      description: Read-only operations are lower risk
+      options:
+        - "Read-only (GET requests only)"
+        - "Write operation (POST/PUT/PATCH/DELETE)"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: affected-domains
+    attributes:
+      label: "4b. Affected Backend Domains"
+      description: Select all domains this feature touches
+      options:
+        - label: identity (auth, users, tenants)
+        - label: patients (patient records)
+        - label: sessions (live consultations)
+        - label: clinical-notes (SOAP notes)
+        - label: prescriptions (medications)
+        - label: labs (lab orders/results)
+        - label: referrals (specialist referrals)
+        - label: audit (audit logs)
+
+  - type: textarea
+    id: state-machine-impact
+    attributes:
+      label: 5. State Machine Impact
+      description: Does this change any state transitions or add new states?
+      placeholder: |
+        Affected state machines: NONE
+        
+        OR
+        
+        Affected state machines: session.status
+        New transition: active → paused (for medication review mode)
+        Guards: Only provider role can pause
+    validations:
+      required: true
+
+  - type: dropdown
+    id: state-machine-changes
+    attributes:
+      label: "5a. State Machine Changes"
+      description: If YES, STATE_MACHINES.md MUST be updated BEFORE implementation
+      options:
+        - "NO - No state changes"
+        - "YES - New state(s)"
+        - "YES - New transition(s)"
+        - "YES - Both new state(s) and transition(s)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: ai-impact
+    attributes:
+      label: 6. AI Impact
+      description: Does AI see this data? Does AI suggest or generate anything?
+      placeholder: |
+        AI visibility: YES - AI can see medication timeline (read-only)
+        AI suggestions: NO - This is pure data display
+        
+        OR
+        
+        AI visibility: NO - This data is not exposed to AI
+        AI suggestions: NO
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai-can-see
+    attributes:
+      label: "6a. Can AI see this data?"
+      description: Check AI_ASSISTANT_SPEC.md for allowed inputs
+      options:
+        - "NO - Data not exposed to AI"
+        - "YES - AI can read (within boundaries)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai-can-suggest
+    attributes:
+      label: "6b. Does AI generate or suggest anything?"
+      description: If YES, must follow human-in-the-loop rules
+      options:
+        - "NO - AI does not generate suggestions"
+        - "YES - AI suggests (draft only, human approval required)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety-notes
+    attributes:
+      label: 7. Safety Notes
+      description: Could this affect clinical safety? Patient privacy? Data integrity?
+      placeholder: |
+        Clinical safety: LOW - Read-only display, no treatment decisions
+        Patient privacy: MEDIUM - Shows historical medication data
+        Data integrity: NONE - No writes
+        
+        Mitigations:
+        - Role-based access enforced (provider only in active session)
+        - Tenant isolation verified
+    validations:
+      required: true
+
+  - type: dropdown
+    id: clinical-safety-risk
+    attributes:
+      label: "7a. Clinical Safety Risk"
+      description: Be conservative in assessment
+      options:
+        - "NONE - No clinical impact"
+        - "LOW - Indirect impact (e.g., display only)"
+        - "MEDIUM - Could influence clinical decisions"
+        - "HIGH - Direct patient safety impact"
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: 8. Acceptance Criteria
+      description: Clear, testable outcomes that define "done"
+      placeholder: |
+        - [ ] Provider can view medication timeline in active session
+        - [ ] Timeline shows all prescriptions (draft, issued, active, completed, cancelled)
+        - [ ] Timeline is sorted by prescription date (newest first)
+        - [ ] Role enforcement verified (only provider in active session)
+        - [ ] Tenant isolation verified (no cross-tenant data leak)
+        - [ ] Unit tests pass (>80% coverage)
+        - [ ] Integration tests pass
+        - [ ] API documentation updated
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sprint-assignment
+    attributes:
+      label: 9. Sprint Assignment
+      description: Which sprint should this be implemented in?
+      options:
+        - "Sprint 0 - Project Setup"
+        - "Sprint 1 - Frontend Foundation"
+        - "Sprint 2 - Auth & Role UI"
+        - "Sprint 3 - Backend Foundation"
+        - "Sprint 4 - Integration (Auth + Patients)"
+        - "Sprint 5 - Read Domains"
+        - "Sprint 6 - Write Domains (Immutability)"
+        - "Sprint 7 - AI Integration"
+        - "Sprint 8 - Hardening & Production Prep"
+        - "Future - Not scheduled yet"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 10. Additional Context
+      description: Any other relevant information, screenshots, diagrams, or references
+      placeholder: |
+        Related documentation:
+        - STATE_MACHINES.md (session states)
+        - API_CONTRACTS.md (prescriptions endpoints)
+        
+        Dependencies:
+        - Requires prescriptions domain to be implemented first
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## Before Submitting
+        
+        ✅ **CHECKLIST:**
+        - [ ] I have specified which role(s) are affected
+        - [ ] I have documented frontend and backend impact
+        - [ ] I have assessed state machine changes
+        - [ ] I have documented AI impact explicitly
+        - [ ] I have assessed safety implications
+        - [ ] I have provided clear acceptance criteria
+        - [ ] I have assigned this to a sprint
+        
+        ⚠️ **Issues missing required information will be closed.**
