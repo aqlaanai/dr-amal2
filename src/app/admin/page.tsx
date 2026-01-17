@@ -6,8 +6,9 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RestrictedState } from '@/components/states/RestrictedState'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { withAuth } from '@/components/auth/withAuth'
 
-export default function AdminPage() {
+function AdminPage() {
   const { hasAccess } = useRoleAccess(['admin'])
 
   if (!hasAccess) {
@@ -42,3 +43,5 @@ const AdminIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 )
+
+export default withAuth(AdminPage)

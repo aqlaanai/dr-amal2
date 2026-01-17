@@ -2,9 +2,18 @@
 
 import React from 'react'
 import { useRole } from '@/contexts/RoleContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 export const Header: React.FC = () => {
   const { role } = useRole()
+  const { user, logout } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/auth/signin')
+  }
 
   return (
     <header className="h-16 bg-white border-b border-clinical-border flex items-center justify-between px-6">
@@ -85,19 +94,34 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-3 pl-4 border-l border-clinical-border">
           <div className="text-right">
             <p className="text-sm font-medium text-clinical-text-primary">
-              {role === 'provider' && 'Dr. Sarah Williams'}
-              {role === 'admin' && 'System Admin'}
-              {role === 'parent' && 'John Smith'}
+              {user ? `${user.firstName} ${user.lastName}` : 'Loading...'}
             </p>
             <p className="text-xs text-clinical-text-muted capitalize">
-              {role === 'provider' ? 'Healthcare Provider' : role}
+              {user?.role === 'provider' ? 'Healthcare Provider' : user?.role || 'User'}
             </p>
           </div>
           <div className="w-9 h-9 rounded-full bg-gradient-to-r from-clinical-blue to-clinical-purple flex items-center justify-center text-white text-sm font-medium">
-            {role === 'provider' && 'SW'}
-            {role === 'admin' && 'SA'}
-            {role === 'parent' && 'JS'}
+            {user ? `${user.firstName[0]}${user.lastName[0]}` : '?'}
           </div>
+          <button
+            onClick={handleLogout}
+            className="ml-2 p-2 text-clinical-text-muted hover:text-clinical-red transition-colors"
+            title="Logout"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
+            </svg>
+          </button>
         </div>
       </div>
     </header>

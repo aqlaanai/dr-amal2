@@ -6,8 +6,9 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RestrictedState } from '@/components/states/RestrictedState'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { withAuth } from '@/components/auth/withAuth'
 
-export default function ReferralsPage() {
+function ReferralsPage() {
   const { hasAccess } = useRoleAccess(['provider'])
 
   if (!hasAccess) {
@@ -45,3 +46,5 @@ const ReferralIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
   </svg>
 )
+
+export default withAuth(ReferralsPage)

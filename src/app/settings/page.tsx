@@ -6,8 +6,9 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RestrictedState } from '@/components/states/RestrictedState'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { withAuth } from '@/components/auth/withAuth'
 
-export default function SettingsPage() {
+function SettingsPage() {
   const { hasAccess } = useRoleAccess(['admin'])
 
   if (!hasAccess) {
@@ -41,3 +42,5 @@ const SettingsIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
   </svg>
 )
+
+export default withAuth(SettingsPage)

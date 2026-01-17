@@ -1,10 +1,15 @@
+/**
+ * SignIn Form
+ * Issue 1: Real Authentication - Updated to use real API
+ */
+
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface SignInFormProps {
   onForgotPassword: () => void
@@ -23,7 +28,7 @@ interface FormErrors {
 type AuthState = 'idle' | 'loading' | 'error' | 'locked'
 
 export const SignInForm: React.FC<SignInFormProps> = ({ onForgotPassword }) => {
-  const router = useRouter()
+  const { signin } = useAuth()
   const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
@@ -62,19 +67,13 @@ export const SignInForm: React.FC<SignInFormProps> = ({ onForgotPassword }) => {
 
     setAuthState('loading')
 
-    // Simulate API call
-    // In production, this would call your backend authentication endpoint
-    setTimeout(() => {
-      // Success - redirect to dashboard
-      setAuthState('idle')
-      console.log('Sign in successful:', { email: formData.email })
-      router.push('/overview')
-      
-      // For production with real backend:
-      // Handle error cases like invalid credentials or locked accounts:
-      // setAuthState('error')
-      // setErrorMessage('Invalid email or password. Please try again.')
-    }, 1500)
+    try {
+      await signin(formData.email, formData.password)
+      // Redirect handled by AuthContext
+    } catch (error) {
+      setAuthState('error')
+      setErrorMessage(error instanceof Error ? error.message : 'Authentication failed')
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

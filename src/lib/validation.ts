@@ -1,9 +1,164 @@
 /**
  * Validation Utilities
  * 
- * Frontend-only validation helpers for forms.
- * All validation is for UI/UX purposes only - backend must re-validate.
+ * Frontend validation helpers for forms.
+ * Backend server-side validation (security-critical).
  */
+
+// ============================================================================
+// SERVER-SIDE VALIDATION (Issue 7: Security Hardening)
+// ============================================================================
+
+/**
+ * Validation errors
+ */
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+/**
+ * Validate email format (SERVER-SIDE)
+ */
+export function validateEmail(email: string): void {
+  if (!email || typeof email !== 'string') {
+    throw new ValidationError('Email is required');
+  }
+
+  if (email.length > 255) {
+    throw new ValidationError('Email too long (max 255 characters)');
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new ValidationError('Invalid email format');
+  }
+
+  // Prevent email injection
+  if (email.includes('\n') || email.includes('\r')) {
+    throw new ValidationError('Invalid email format');
+  }
+}
+
+/**
+ * Validate password strength (SERVER-SIDE)
+ */
+export function validatePassword(password: string): void {
+  if (!password || typeof password !== 'string') {
+    throw new ValidationError('Password is required');
+  }
+
+  if (password.length < 8) {
+    throw new ValidationError('Password must be at least 8 characters');
+  }
+
+  if (password.length > 128) {
+    throw new ValidationError('Password too long (max 128 characters)');
+  }
+
+  // Require at least one letter and one number
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    throw new ValidationError('Password must contain at least one letter and one number');
+  }
+}
+
+/**
+ * Validate UUID format (SERVER-SIDE)
+ */
+export function validateUUID(id: string, fieldName: string = 'ID'): void {
+  if (!id || typeof id !== 'string') {
+    throw new ValidationError(`${fieldName} is required`);
+  }
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(id)) {
+    throw new ValidationError(`Invalid ${fieldName} format`);
+  }
+}
+
+/**
+ * Sanitize string input (SERVER-SIDE)
+ * Remove potentially dangerous characters
+ */
+export function sanitizeString(input: string, maxLength: number = 1000): string {
+  if (!input) return '';
+
+  // Trim whitespace
+  let sanitized = input.trim();
+
+  // Enforce length limit (DoS prevention)
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength);
+  }
+
+  // Remove null bytes (SQL injection prevention)
+  sanitized = sanitized.replace(/\0/g, '');
+
+  return sanitized;
+}
+
+/**
+ * Validate string field (SERVER-SIDE)
+ */
+export function validateString(
+  value: string | undefined,
+  fieldName: string,
+  options: {
+    required?: boolean;
+    minLength?: number;
+    maxLength?: number;
+  } = {}
+): void {
+  if (options.required && (!value || typeof value !== 'string')) {
+    throw new ValidationError(`${fieldName} is required`);
+  }
+
+  if (!value) return; // Optional field, skip validation
+
+  if (typeof value !== 'string') {
+    throw new ValidationError(`${fieldName} must be a string`);
+  }
+
+  if (options.minLength && value.length < options.minLength) {
+    throw new ValidationError(`${fieldName} must be at least ${options.minLength} characters`);
+  }
+
+  if (options.maxLength && value.length > options.maxLength) {
+    throw new ValidationError(`${fieldName} too long (max ${options.maxLength} characters)`);
+  }
+}
+
+/**
+ * Validate array field (SERVER-SIDE)
+ */
+export function validateArray(
+  value: any,
+  fieldName: string,
+  options: {
+    required?: boolean;
+    maxItems?: number;
+  } = {}
+): void {
+  if (options.required && (!value || !Array.isArray(value))) {
+    throw new ValidationError(`${fieldName} is required and must be an array`);
+  }
+
+  if (!value) return; // Optional field
+
+  if (!Array.isArray(value)) {
+    throw new ValidationError(`${fieldName} must be an array`);
+  }
+
+  if (options.maxItems && value.length > options.maxItems) {
+    throw new ValidationError(`${fieldName} has too many items (max ${options.maxItems})`);
+  }
+}
+
+// ============================================================================
+// CLIENT-SIDE VALIDATION (UI/UX helpers)
+// ============================================================================
 
 /**
  * Validates email format

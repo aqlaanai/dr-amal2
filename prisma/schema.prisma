@@ -1,0 +1,228 @@
+// Prisma Schema for Dr Amal Clinical OS v2.0
+// Issue 2: Database Foundation - STRICT COMPLIANCE
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// ENUMS (MANDATORY)
+// ============================================================================
+enum UserRole {
+  provider
+  admin
+  parent
+}
+
+enum AccountStatus {
+  active
+  pending
+  locked
+}
+
+enum ClinicalNoteStatus {
+  draft
+  finalized
+  archived
+}
+
+enum PrescriptionStatus {
+  draft
+  issued
+  completed
+  cancelled
+}
+
+enum SessionStatus {
+  scheduled
+  waiting
+  active
+  completed
+  archived
+}
+
+enum LabResultStatus {
+  pending
+  received
+  reviewed
+  archived
+}
+
+// ============================================================================
+// USERS TABLE - Identity and authentication
+// ============================================================================
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  passwordHash  String
+  role          UserRole
+  accountStatus AccountStatus @default(pending)
+
+  // Session management (required for Issue 1 auth)
+  refreshToken String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  providedSessions LiveSession[]
+  orderedLabs      LabResult[]    @relation("OrderedLabs")
+  clinicalNotes    ClinicalNote[]
+  prescriptions    Prescription[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([accountStatus])
+}
+
+// ============================================================================
+// PATIENTS TABLE - Patient registry
+// ============================================================================
+model Patient {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  status      String   @default("active")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  sessions      LiveSession[]
+  clinicalNotes ClinicalNote[]
+  prescriptions Prescription[]
+  labResults    LabResult[]
+
+  @@index([firstName])
+  @@index([lastName])
+  @@index([dateOfBirth])
+  @@index([status])
+}
+
+// ============================================================================
+// LIVE_SESSIONS TABLE - Patient encounters
+// ============================================================================
+model LiveSession {
+  id          String        @id @default(uuid())
+  patientId   String
+  providerId  String
+  status      SessionStatus
+  scheduledAt DateTime
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  provider      User           @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  clinicalNotes ClinicalNote[]
+
+  @@index([patientId, status])
+  @@index([providerId, scheduledAt])
+  @@index([scheduledAt])
+}
+
+// ============================================================================
+// CLINICAL_NOTES TABLE - SOAP notes (immutable after finalization)
+// ============================================================================
+model ClinicalNote {
+  id          String             @id @default(uuid())
+  patientId   String
+  providerId  String
+  status      ClinicalNoteStatus
+  subjective  String?
+  objective   String?
+  assessment  String?
+  plan        String?
+  finalizedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  patient  Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  session  LiveSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  provider User         @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
+  sessionId String?
+
+  @@index([patientId, status])
+  @@index([providerId, createdAt])
+  @@index([sessionId])
+}
+
+// ============================================================================
+// PRESCRIPTIONS TABLE - Medication prescriptions (immutable after issuance)
+// ============================================================================
+model Prescription {
+  id           String             @id @default(uuid())
+  patientId    String
+  providerId   String
+  medication   String
+  dosage       String
+  duration     String
+  instructions String?
+  status       PrescriptionStatus
+  issuedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  provider User    @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, status])
+  @@index([providerId, issuedAt])
+  @@index([medication])
+}
+
+// ============================================================================
+// LAB_RESULTS TABLE - Laboratory tests (immutable after review)
+// ============================================================================
+model LabResult {
+  id            String          @id @default(uuid())
+  patientId     String
+  orderedBy     String
+  resultSummary String?
+  abnormalFlag  Boolean         @default(false)
+  status        LabResultStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  patient          Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  orderingProvider User    @relation("OrderedLabs", fields: [orderedBy], references: [id], onDelete: Restrict)
+
+  @@index([patientId, status])
+  @@index([orderedBy, createdAt])
+}
+
+// ============================================================================
+// AUDIT_LOGS TABLE - Immutable append-only audit trail
+// ============================================================================
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  timestamp  DateTime @default(now())
+  metadata   String? // JSON string (SQLite doesn't have native JSON type)
+
+  // Relationships
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, timestamp])
+  @@index([entityType, entityId, timestamp])
+  @@index([action, timestamp])
+}

@@ -6,8 +6,9 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RestrictedState } from '@/components/states/RestrictedState'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { withAuth } from '@/components/auth/withAuth'
 
-export default function SchedulePage() {
+function SchedulePage() {
   const { hasAccess } = useRoleAccess(['provider'])
 
   if (!hasAccess) {
@@ -45,3 +46,5 @@ const CalendarIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
   </svg>
 )
+
+export default withAuth(SchedulePage)

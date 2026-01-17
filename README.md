@@ -204,6 +204,44 @@ Before deploying:
 - [ ] Security audit
 - [ ] Performance optimization
 
+## Production Deployment
+
+The system is production-ready with comprehensive hardening. See documentation:
+
+- **[Production Readiness](docs/PRODUCTION_READINESS.md)** - Complete go-live checklist
+- **[Monitoring & Alerting](docs/MONITORING_ALERTING.md)** - Observability setup
+- **[Backup & Recovery](docs/BACKUP_RECOVERY.md)** - Data safety procedures
+- **[Rollback Strategy](docs/ROLLBACK_STRATEGY.md)** - Safe deployment practices
+- **[Incident Response](docs/INCIDENT_RESPONSE.md)** - Emergency procedures
+
+### Quick Start (Production)
+
+1. **Configure Environment**
+   ```bash
+   cp .env.production.example .env.production
+   # Edit with production secrets
+   ```
+
+2. **Deploy**
+   ```bash
+   # Using your deployment platform (Vercel, Netlify, etc.)
+   # Set DATABASE_URL to production Neon instance
+   ```
+
+3. **Verify**
+   ```bash
+   curl https://your-domain.com/health
+   ```
+
+### Security Features
+
+- JWT-based authentication with refresh tokens
+- Rate limiting on all endpoints
+- Structured logging (no sensitive data)
+- Audit trails for all clinical actions
+- Automatic database backups (Neon)
+- Comprehensive monitoring and alerting
+
 ## License
 
 Proprietary - Dr Amal Clinical OS v2.0
