@@ -6,7 +6,6 @@
 // Set test environment variables - use SQLite for isolated testing
 process.env.DATABASE_PROVIDER = 'sqlite'
 process.env.DATABASE_URL = 'file:./test.db'
-process.env.NODE_ENV = 'test'
 process.env.JWT_SECRET = 'test-secret-key-for-testing-only'
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-key-for-testing-only'
 process.env.PRISMA_TEST_MODE = 'true'

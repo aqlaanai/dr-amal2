@@ -3,12 +3,12 @@
 
 generator client {
   provider = "prisma-client-js"
-  engineType = "library"
+  engineType = "binary"
 }
 
 // Connection URL is configured in prisma.config.ts
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ============================================================================

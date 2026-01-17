@@ -11,8 +11,6 @@ import { getRequestContext } from '@/lib/auth-context';
 import { logger, generateRequestId } from '@/lib/logger';
 import { metrics } from '@/lib/metrics';
 
-const patientService = getPatientService();
-
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
   const startTime = Date.now();
@@ -27,6 +25,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
+
+    // Initialize service
+    const patientService = getPatientService();
 
     // Call service
     const result = await patientService.getPatients(context, { limit, offset });

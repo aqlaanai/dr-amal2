@@ -11,8 +11,6 @@ import { getRequestContext } from '@/lib/auth-context';
 import { logger, generateRequestId } from '@/lib/logger';
 import { metrics } from '@/lib/metrics';
 
-const patientService = getPatientService();
-
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -28,6 +26,9 @@ export async function GET(
 
     // Get patient ID from params
     const patientId = params.id;
+
+    // Initialize service
+    const patientService = getPatientService();
 
     // Call service
     const patient = await patientService.getPatientById(patientId, context);

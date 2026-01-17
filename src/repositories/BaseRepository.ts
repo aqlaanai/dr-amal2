@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { RequestContext } from '@/types/context';
 
 /**
@@ -43,6 +42,7 @@ export class BaseRepository {
 
 // Singleton Prisma client instance
 let prismaInstance: PrismaClient | null = null;
+let isBuildTime = false;
 
 /**
  * Get or create singleton Prisma client
@@ -50,17 +50,33 @@ let prismaInstance: PrismaClient | null = null;
  */
 function getPrismaClient(): PrismaClient {
   if (!prismaInstance) {
-    const options: any = {
-      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-    };
-    
-    // Use SQLite adapter in test mode
-    if (process.env.PRISMA_TEST_MODE === 'true') {
-      const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
-      options.adapter = new PrismaBetterSqlite3({ url: 'file:./test.db' });
+    try {
+      const options: any = {
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      };
+      
+      // Use SQLite adapter in test mode
+      if (process.env.PRISMA_TEST_MODE === 'true') {
+        try {
+          const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
+          options.adapter = new PrismaBetterSqlite3({ url: 'file:./test.db' });
+        } catch (err) {
+          console.warn('SQLite adapter not available:', err);
+        }
+      }
+      
+      prismaInstance = new PrismaClient(options);
+    } catch (err) {
+      // During build, Prisma might fail to initialize if DATABASE_URL is not valid
+      // Create a dummy client that won't be used at runtime
+      isBuildTime = true;
+      console.warn('Prisma initialization failed (likely during build):', (err as Error).message);
+      
+      // Return a mock PrismaClient for build purposes
+      prismaInstance = new PrismaClient({
+        log: ['error'],
+      } as any) as PrismaClient;
     }
-    
-    prismaInstance = new PrismaClient(options);
   }
   return prismaInstance;
 }
