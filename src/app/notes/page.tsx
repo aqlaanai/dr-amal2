@@ -41,6 +41,20 @@ interface NoteFormData {
   plan: string
 }
 
+interface AISuggestion {
+  subjective: string
+  objective: string
+  assessment: string
+  plan: string
+}
+
+interface AIResponse {
+  suggestion: AISuggestion
+  confidence: 'low' | 'medium' | 'high'
+  refused: boolean
+  reasoning: string
+}
+
 export default function NotesPage() {
   const router = useRouter()
   const [notes, setNotes] = useState<ClinicalNote[]>([])
@@ -59,6 +73,12 @@ export default function NotesPage() {
   const [success, setSuccess] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [finalizingId, setFinalizingId] = useState<string | null>(null)
+  
+  // AI Suggestion State
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResponse, setAiResponse] = useState<AIResponse | null>(null)
+  const [showAiModal, setShowAiModal] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   // Fetch notes list
   useEffect(() => {
@@ -138,6 +158,53 @@ export default function NotesPage() {
     }
   }
 
+  // AI Suggestion Handler - USER-TRIGGERED ONLY
+  const handleGetAISuggestion = async () => {
+    if (!formData.sessionId) {
+      setAiError('Session ID is required for AI suggestions')
+      return
+    }
+
+    try {
+      setAiLoading(true)
+      setAiError(null)
+      setAiResponse(null)
+      
+      const response = await ApiClient.post<AIResponse>('/api/ai/generate-note', {
+        sessionId: formData.sessionId
+      })
+      
+      setAiResponse(response)
+      setShowAiModal(true)
+    } catch (err: any) {
+      // Handle specific errors
+      if (err.statusCode === 429) {
+        setAiError('Too many AI requests. Please wait before trying again.')
+      } else if (err.statusCode === 403) {
+        setAiError('You do not have permission to use AI suggestions.')
+      } else {
+        setAiError(err.error || 'Failed to get AI suggestion')
+      }
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // Apply AI Suggestion - MANUAL ONLY, USER-TRIGGERED
+  const handleApplyAISuggestion = () => {
+    if (aiResponse && aiResponse.suggestion) {
+      setFormData({
+        ...formData,
+        subjective: aiResponse.suggestion.subjective || formData.subjective,
+        objective: aiResponse.suggestion.objective || formData.objective,
+        assessment: aiResponse.suggestion.assessment || formData.assessment,
+        plan: aiResponse.suggestion.plan || formData.plan,
+      })
+      setShowAiModal(false)
+      setAiResponse(null)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'draft':
@@ -188,6 +255,10 @@ export default function NotesPage() {
                     <Alert type="success" message="Clinical note created successfully!" className="mb-4" />
                   )}
 
+                  {aiError && (
+                    <Alert type="danger" message={aiError} className="mb-4" />
+                  )}
+
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <Input
                       label="Patient ID"
@@ -203,6 +274,28 @@ export default function NotesPage() {
                       onChange={(e) => setFormData({ ...formData, sessionId: e.target.value })}
                       placeholder="Enter session ID"
                     />
+
+                    {/* AI Suggestion Button */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-900">AI Assistance</h4>
+                          <p className="text-xs text-blue-700 mt-1">
+                            Get an AI-generated SOAP note suggestion based on this session
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={handleGetAISuggestion}
+                          disabled={!formData.sessionId || aiLoading}
+                        >
+                          {aiLoading ? 'Generating...' : '🤖 Get AI Suggestion'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-2">
+                        ⚠️ AI suggestions require manual review before use
+                      </p>
+                    </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -350,6 +443,125 @@ export default function NotesPage() {
             </>
           )}
         </div>
+
+        {/* AI Suggestion Modal */}
+        {showAiModal && aiResponse && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">AI-Generated SOAP Note Suggestion</h3>
+                    <p className="text-sm text-gray-500 mt-1">Review carefully before applying</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowAiModal(false)
+                      setAiError(null)
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Confidence Badge */}
+                <div className="mt-3">
+                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                    aiResponse.confidence === 'high' ? 'bg-green-100 text-green-800' :
+                    aiResponse.confidence === 'medium' ? 'bg-blue-100 text-blue-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {aiResponse.confidence.toUpperCase()} CONFIDENCE
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {aiResponse.refused ? (
+                  <Alert 
+                    type="warning" 
+                    message={`AI declined to generate suggestion: ${aiResponse.reasoning}`}
+                  />
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Subjective (S)
+                      </label>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                        {aiResponse.suggestion.subjective}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Objective (O)
+                      </label>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                        {aiResponse.suggestion.objective}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Assessment (A)
+                      </label>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                        {aiResponse.suggestion.assessment}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Plan (P)
+                      </label>
+                      <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                        {aiResponse.suggestion.plan}
+                      </div>
+                    </div>
+
+                    {aiResponse.reasoning && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                        <p className="text-xs font-medium text-blue-900 mb-1">AI Reasoning:</p>
+                        <p className="text-sm text-blue-700">{aiResponse.reasoning}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-600">
+                    ⚠️ AI-generated content. Clinical judgment required. Review and edit as needed.
+                  </p>
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setShowAiModal(false)
+                        setAiError(null)
+                      }}
+                    >
+                      Close
+                    </Button>
+                    {!aiResponse.refused && (
+                      <Button
+                        type="button"
+                        onClick={handleApplyAISuggestion}
+                      >
+                        Apply to Form
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </AppShell>
     </ProtectedRoute>
   )
