@@ -25,7 +25,6 @@ import {
 
 describe('State Machine Tests', () => {
   beforeEach(async () => {
-    process.env.DATABASE_URL = 'file:./test.db'
     await cleanupTestDb()
   })
 

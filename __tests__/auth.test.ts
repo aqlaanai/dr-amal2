@@ -25,7 +25,6 @@ import { verifyAccessToken, verifyRefreshToken } from '@/lib/jwt'
 describe('Authentication Tests', () => {
   beforeEach(async () => {
     // Ensure test environment
-    process.env.DATABASE_URL = 'file:./test.db'
     await cleanupTestDb()
   })
 

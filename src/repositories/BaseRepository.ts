@@ -50,9 +50,17 @@ let prismaInstance: PrismaClient | null = null;
  */
 function getPrismaClient(): PrismaClient {
   if (!prismaInstance) {
-    prismaInstance = new PrismaClient({
+    const options: any = {
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-    });
+    };
+    
+    // Use SQLite adapter in test mode
+    if (process.env.PRISMA_TEST_MODE === 'true') {
+      const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
+      options.adapter = new PrismaBetterSqlite3({ url: 'file:./test.db' });
+    }
+    
+    prismaInstance = new PrismaClient(options);
   }
   return prismaInstance;
 }

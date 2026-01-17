@@ -23,7 +23,6 @@ import {
 
 describe('Write Safety Tests', () => {
   beforeEach(async () => {
-    process.env.DATABASE_URL = 'file:./test.db'
     await cleanupTestDb()
   })
 

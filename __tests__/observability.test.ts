@@ -30,7 +30,6 @@ let errorCalls: any[] = []
 
 describe('Observability Tests', () => {
   beforeEach(async () => {
-    process.env.DATABASE_URL = 'file:./test.db'
     await cleanupTestDb()
     
     // Capture console output

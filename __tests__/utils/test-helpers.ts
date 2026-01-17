@@ -13,10 +13,12 @@ let testPrisma: PrismaClient | null = null
 
 export function getTestPrisma(): PrismaClient {
   if (!testPrisma) {
-    // Force use of test database
-    process.env.DATABASE_URL = 'file:./test.db'
-    const adapter = new PrismaBetterSqlite3({ url: './test.db' })
-    testPrisma = new PrismaClient({ adapter })
+    // Use SQLite adapter for tests (isolated from production)
+    const adapter = new PrismaBetterSqlite3({ url: 'file:./test.db' })
+    testPrisma = new PrismaClient({
+      adapter,
+      log: process.env.PRISMA_LOG === 'true' ? ['query', 'error', 'warn'] : [],
+    })
   }
   return testPrisma
 }

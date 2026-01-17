@@ -22,7 +22,6 @@ import {
 
 describe('Authorization Tests', () => {
   beforeEach(async () => {
-    process.env.DATABASE_URL = 'file:./test.db'
     await cleanupTestDb()
   })
 
