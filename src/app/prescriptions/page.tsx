@@ -61,11 +61,12 @@ export default function PrescriptionsPage() {
     async function fetchPrescriptions() {
       try {
         setLoading(true)
-        const response = await ApiClient.get<{ prescriptions: Prescription[] }>('/api/prescriptions?limit=50')
-        setPrescriptions(response.prescriptions || [])
+        const response = await ApiClient.get<any>('/api/prescriptions?limit=50&offset=0')
+        setPrescriptions(response.data || [])
         setError(null)
       } catch (err: any) {
-        setError(err.error || 'Failed to load prescriptions')
+        console.error('Failed to load prescriptions:', err)
+        setError(err?.message || err?.error || 'Failed to load prescriptions')
       } finally {
         setLoading(false)
       }
@@ -148,7 +149,7 @@ export default function PrescriptionsPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title="Prescriptions"

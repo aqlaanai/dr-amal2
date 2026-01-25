@@ -89,6 +89,13 @@ export async function PUT(
 
     if (error instanceof Error) {
       // Handle specific errors
+      if (error.message.includes('Invalid or expired access token')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+
       if (error.message.includes('Forbidden') || error.message.includes('Cannot edit')) {
         return NextResponse.json(
           { error: error.message },

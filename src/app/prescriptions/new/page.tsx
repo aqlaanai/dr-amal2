@@ -112,7 +112,7 @@ function CreatePrescriptionPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title="Create Prescription"

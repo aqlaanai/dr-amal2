@@ -65,14 +65,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [])
 
   const signin = async (email: string, password: string) => {
+    console.log('AuthContext signin called with:', { email: email || '(empty)', password: password ? '(provided)' : '(empty)' });
+    
+    const requestBody = { email, password };
+    console.log('Request body to be sent:', JSON.stringify(requestBody));
+    
     const response = await fetch('/api/auth/signin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(requestBody),
     })
 
+    console.log('Response status:', response.status);
+    
     if (!response.ok) {
       const error = await response.json()
+      console.error('Signin API error:', error);
       throw new Error(error.error || 'Authentication failed')
     }
 
@@ -90,31 +98,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const signup = async (signupData: SignupData) => {
-    const response = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(signupData),
-    })
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Signup failed')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Signup failed')
+      }
+
+      const data = await response.json()
+      
+      // Store tokens and user
+      localStorage.setItem('accessToken', data.accessToken)
+      localStorage.setItem('refreshToken', data.refreshToken)
+      localStorage.setItem('user', JSON.stringify(data.user))
+      
+      setAccessToken(data.accessToken)
+      setUser(data.user)
+      
+      router.push('/overview')
+    } catch (error) {
+      throw error
     }
-
-    const data = await response.json()
-    
-    // Store tokens and user
-    localStorage.setItem('accessToken', data.accessToken)
-    localStorage.setItem('refreshToken', data.refreshToken)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    
-    setAccessToken(data.accessToken)
-    setUser(data.user)
-    
-    router.push('/overview')
   }
 
   const logout = async () => {
+    // Try to call logout API, but don't fail if it doesn't work (network error, etc)
     const token = localStorage.getItem('accessToken')
     
     if (token) {
@@ -123,10 +136,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           method: 'POST',
           headers: { 
             'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         })
       } catch (error) {
-        console.error('Logout error:', error)
+        // Logout API error - continue with client-side cleanup
+        console.error('[Auth] Logout API call failed, continuing with local cleanup', error)
       }
     }
     
@@ -161,17 +176,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const data = await response.json()
       
+      // Store new tokens - endpoint returns both accessToken and refreshToken
       localStorage.setItem('accessToken', data.accessToken)
       localStorage.setItem('refreshToken', data.refreshToken)
       
       setAccessToken(data.accessToken)
     } catch (error) {
       // Refresh failed, clear everything
+      console.error('[Auth] Token refresh failed, clearing session', error)
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
       setAccessToken(null)
       setUser(null)
+    } finally {
+      setIsLoading(false)
     }
   }
 

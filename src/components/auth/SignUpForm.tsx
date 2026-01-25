@@ -46,8 +46,8 @@ export const SignUpForm: React.FC = () => {
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
 
   const roleOptions = [
-    { value: '', label: 'Select role' },
-    { value: 'parent', label: 'Parent / Caregiver' },
+    { value: '', label: 'Select Role' },
+    { value: 'parent', label: 'Parent/Caregiver' },
     { value: 'provider', label: 'Healthcare Provider' },
   ]
 
@@ -80,21 +80,21 @@ export const SignUpForm: React.FC = () => {
 
     // Role
     if (!formData.role) {
-      newErrors.role = 'Please select a role'
+      newErrors.role = 'Role is required'
     }
 
     // Phone
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required'
     } else if (!/^\+?[\d\s\-()]+$/.test(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number'
+      newErrors.phone = 'Invalid phone number'
     }
 
     // Email
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address'
+      newErrors.email = 'Invalid email address'
     }
 
     // Password
@@ -106,7 +106,7 @@ export const SignUpForm: React.FC = () => {
 
     // Confirm password
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password'
+      newErrors.confirmPassword = 'Confirm password is required'
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match'
     }
@@ -123,19 +123,45 @@ export const SignUpForm: React.FC = () => {
     }
 
     setIsLoading(true)
+    setErrors({})
 
-    // Simulate API call
-    // In production, this would call your backend registration endpoint
-    setTimeout(() => {
-      setIsLoading(false)
-      // Success - redirect to dashboard
-      console.log('Sign up successful:', {
-        ...formData,
-        password: '[REDACTED]',
-        confirmPassword: '[REDACTED]',
+    try {
+      // Call the signup API directly (before auth, so can't use ApiClient)
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          role: formData.role,
+        }),
       })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        // Handle error responses
+        setErrors({ email: data.error || 'Signup failed. Please try again.' })
+        return
+      }
+
+      // Success - store tokens and redirect
+      localStorage.setItem('accessToken', data.accessToken)
+      localStorage.setItem('refreshToken', data.refreshToken)
+      localStorage.setItem('user', JSON.stringify(data.user))
+
       router.push('/overview')
-    }, 2000)
+    } catch (error) {
+      console.error('[SignUp] Error:', error)
+      setErrors({ email: 'Network error. Please check your connection and try again.' })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -190,110 +216,118 @@ export const SignUpForm: React.FC = () => {
     <form onSubmit={handleSubmit} className="space-y-5">
       {getVerificationMessage()}
 
-      <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="First Name"
-          type="text"
-          name="firstName"
-          value={formData.firstName}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="First Name"
+            type="text"
+            name="firstName"
+            value={formData.firstName}
+            onChange={handleChange}
+            error={errors.firstName}
+            placeholder="John"
+            disabled={isLoading}
+          />
+
+          <Input
+            label="Last Name"
+            type="text"
+            name="lastName"
+            value={formData.lastName}
+            onChange={handleChange}
+            error={errors.lastName}
+            placeholder="Doe"
+            disabled={isLoading}
+          />
+        </div>
+
+        <Select
+          label="Role"
+          name="role"
+          value={formData.role}
           onChange={handleChange}
-          error={errors.firstName}
-          placeholder="John"
+          error={errors.role}
+          disabled={isLoading}
+        >
+          {roleOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+
+        <Input
+          label="Phone Number"
+          type="tel"
+          name="phone"
+          value={formData.phone}
+          onChange={handleChange}
+          error={errors.phone}
+          placeholder="+1 (555) 123-4567"
           disabled={isLoading}
         />
 
         <Input
-          label="Last Name"
-          type="text"
-          name="lastName"
-          value={formData.lastName}
+          label="Email Address"
+          type="email"
+          name="email"
+          value={formData.email}
           onChange={handleChange}
-          error={errors.lastName}
-          placeholder="Doe"
+          error={errors.email}
+          placeholder="you@example.com"
+          autoComplete="email"
           disabled={isLoading}
         />
-      </div>
 
-      <Select
-        label="Role"
-        name="role"
-        value={formData.role}
-        onChange={handleChange}
-        error={errors.role}
-        options={roleOptions}
-        disabled={isLoading}
-      />
+        <div>
+          <Input
+            label="Password"
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            error={errors.password}
+            placeholder="Create a strong password"
+            autoComplete="new-password"
+            disabled={isLoading}
+          />
+          
+          {passwordStrength && (
+            <div className="mt-2">
+              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${getPasswordStrengthColor()}`}
+                  style={{ width: getPasswordStrengthWidth() }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-slate-500 capitalize">
+                Password strength: {passwordStrength}
+              </p>
+            </div>
+          )}
+        </div>
 
-      <Input
-        label="Phone Number"
-        type="tel"
-        name="phone"
-        value={formData.phone}
-        onChange={handleChange}
-        error={errors.phone}
-        placeholder="+1 (555) 123-4567"
-        disabled={isLoading}
-      />
-
-      <Input
-        label="Email"
-        type="email"
-        name="email"
-        value={formData.email}
-        onChange={handleChange}
-        error={errors.email}
-        placeholder="you@example.com"
-        autoComplete="email"
-        disabled={isLoading}
-      />
-
-      <div>
         <Input
-          label="Password"
+          label="Confirm Password"
           type="password"
-          name="password"
-          value={formData.password}
+          name="confirmPassword"
+          value={formData.confirmPassword}
           onChange={handleChange}
-          error={errors.password}
-          placeholder="Create a strong password"
+          error={errors.confirmPassword}
+          placeholder="Re-enter your password"
           autoComplete="new-password"
           disabled={isLoading}
         />
-        
-        {passwordStrength && (
-          <div className="mt-2">
-            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-300 ${getPasswordStrengthColor()}`}
-                style={{ width: getPasswordStrengthWidth() }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-clinical-text-secondary capitalize">
-              Password strength: {passwordStrength}
-            </p>
-          </div>
-        )}
       </div>
-
-      <Input
-        label="Confirm Password"
-        type="password"
-        name="confirmPassword"
-        value={formData.confirmPassword}
-        onChange={handleChange}
-        error={errors.confirmPassword}
-        placeholder="Re-enter your password"
-        autoComplete="new-password"
-        disabled={isLoading}
-      />
 
       <Button
         type="submit"
         variant="primary"
         fullWidth
         loading={isLoading}
+        className="!py-3 !text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
       >
-        Create Account
+        Sign Up
       </Button>
     </form>
   )

@@ -2,7 +2,18 @@ import { BaseRepository } from '@/repositories/BaseRepository';
 import { RequestContext } from '@/types/context';
 import { UserRole, LabResult } from '@prisma/client';
 import { getAuditService } from './AuditService';
-import { PaginationParams, PaginatedResponse } from './PatientService';
+
+interface PaginationParams {
+  offset?: number
+  limit?: number
+}
+
+interface PaginatedResponse<T> {
+  data: T[]
+  total: number
+  offset: number
+  limit: number
+}
 
 /**
  * Lab Result Service - READ ONLY
@@ -36,6 +47,11 @@ export class LabResultService extends BaseRepository {
     context: RequestContext,
     params: PaginationParams = {}
   ): Promise<PaginatedResponse<LabResult>> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireReadAccess(context);
 
@@ -44,11 +60,18 @@ export class LabResultService extends BaseRepository {
 
     const client = this.getClient(context);
 
-    // Get total count
-    const total = await client.labResult.count();
+    // Get total count with tenant isolation
+    const total = await client.labResult.count({
+      where: {
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
+    });
 
-    // Get paginated data
+    // Get paginated data with tenant isolation
     const data = await client.labResult.findMany({
+      where: {
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      },
       take: limit,
       skip: offset,
       orderBy: {
@@ -63,19 +86,16 @@ export class LabResultService extends BaseRepository {
         entityId: 'list',
         action: 'viewed',
         actorId: context.userId,
+        tenantId: context.tenantId,
         metadata: { count: data.length, offset, limit },
       },
-      context
     );
 
     return {
       data,
-      pagination: {
-        total,
-        limit,
-        offset,
-        hasMore: offset + limit < total,
-      },
+      total,
+      offset,
+      limit
     };
   }
 
@@ -91,13 +111,21 @@ export class LabResultService extends BaseRepository {
     labResultId: string,
     context: RequestContext
   ): Promise<LabResult | null> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireReadAccess(context);
 
     const client = this.getClient(context);
 
-    const labResult = await client.labResult.findUnique({
-      where: { id: labResultId },
+    const labResult = await client.labResult.findFirst({
+      where: {
+        id: labResultId,
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
     });
 
     if (!labResult) {
@@ -111,9 +139,9 @@ export class LabResultService extends BaseRepository {
         entityId: labResultId,
         action: 'viewed',
         actorId: context.userId,
+        tenantId: context.tenantId,
         metadata: { patientId: labResult.patientId },
       },
-      context
     );
 
     return labResult;

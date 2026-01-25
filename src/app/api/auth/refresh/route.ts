@@ -1,78 +1,81 @@
-/**
- * POST /api/auth/refresh
- * Issue 1: Real Authentication
- * Issue 3: Backend Services Foundation
- * 
- * Refresh access token using refresh token
- */
-
-import { NextRequest, NextResponse } from 'next/server'
-import { getAuthService } from '@/services/AuthService'
-import { isRateLimited, getRateLimitInfo, RateLimits } from '@/lib/rate-limit'
-import { logger, generateRequestId } from '@/lib/logger'
-import { metrics } from '@/lib/metrics'
-
-const authService = getAuthService()
+import { NextRequest, NextResponse } from 'next/server';
+import { getPrisma } from '@/repositories/BaseRepository';
+import { verifyRefreshToken, generateAccessToken, generateRefreshToken } from '@/lib/jwt';
+import { AccountStatus } from '@prisma/client';
 
 export async function POST(request: NextRequest) {
-  const requestId = generateRequestId();
-  const startTime = Date.now();
-  
   try {
-    // Rate limiting (5 req/min per IP)
-    const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const rateLimitKey = `auth:refresh:${clientIp}`;
-    
-    logger.info('Auth refresh request', { requestId, ip: clientIp, endpoint: '/api/auth/refresh', method: 'POST' });
-    
-    if (isRateLimited(rateLimitKey, RateLimits.AUTH)) {
-      const info = getRateLimitInfo(rateLimitKey, RateLimits.AUTH);
+    const body = await request.json();
+    const { refreshToken } = body;
+
+    if (!refreshToken) {
       return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { 
-          status: 429,
-          headers: {
-            'X-RateLimit-Limit': String(info.limit),
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': String(info.reset),
-          }
-        }
+        { error: 'Refresh token is required' },
+        { status: 400 }
       );
     }
 
-    const body = await request.json()
-    const { refreshToken } = body
+    // Verify refresh token
+    const decoded = verifyRefreshToken(refreshToken);
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Invalid refresh token' },
+        { status: 401 }
+      );
+    }
 
-    // Call AuthService
-    const result = await authService.refresh({ refreshToken })
+    const prisma = getPrisma();
 
-    const duration = Date.now() - startTime;
-    metrics.incrementCounter('auth.refresh.success');
-    metrics.recordDuration('auth.refresh.duration', duration);
-    logger.info('Auth refresh success', { requestId, duration });
+    // Find user and verify stored refresh token
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId }
+    });
 
-    return NextResponse.json(result)
+    if (!user || user.refreshToken !== refreshToken) {
+      return NextResponse.json(
+        { error: 'Invalid refresh token' },
+        { status: 401 }
+      );
+    }
+
+    // Check if account is active
+    if (user.accountStatus !== AccountStatus.active) {
+      return NextResponse.json(
+        { error: 'Account is not active' },
+        { status: 403 }
+      );
+    }
+
+    // Generate new tokens
+    const newAccessToken = generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId
+    });
+
+    const newRefreshToken = generateRefreshToken({
+      userId: user.id,
+      tokenVersion: 0
+    });
+
+    // Update refresh token in database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken: newRefreshToken }
+    });
+
+    return NextResponse.json({
+      success: true,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    });
 
   } catch (error) {
-    const duration = Date.now() - startTime;
-    metrics.incrementCounter('auth.refresh.failure');
-    metrics.recordDuration('auth.refresh.duration', duration);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
-    logger.error('Auth refresh failed', { requestId, duration, error: errorMessage }, error instanceof Error ? error : undefined);
-    
-    // Map specific errors to HTTP status codes
-    if (errorMessage.includes('Invalid') || errorMessage.includes('expired')) {
-      return NextResponse.json({ error: errorMessage }, { status: 401 })
-    }
-    
-    if (errorMessage.includes('required')) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
-    
+    console.error('Refresh token error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to refresh token' },
       { status: 500 }
-    )
+    );
   }
 }

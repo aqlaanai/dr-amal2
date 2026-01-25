@@ -63,24 +63,35 @@ export class ClinicalNoteService extends BaseRepository {
     request: CreateClinicalNoteRequest,
     context: RequestContext
   ): Promise<ClinicalNote> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireWriteAccess(context);
 
     const client = this.getClient(context);
 
-    // Verify patient exists
-    const patient = await client.patient.findUnique({
-      where: { id: request.patientId },
+    // Verify patient exists (with tenant isolation)
+    const patient = await client.patient.findFirst({
+      where: {
+        id: request.patientId,
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
     });
 
     if (!patient) {
       throw new Error('Patient not found');
     }
 
-    // Verify session exists (if provided)
+    // Verify session exists (if provided) (with tenant isolation)
     if (request.sessionId) {
-      const session = await client.liveSession.findUnique({
-        where: { id: request.sessionId },
+      const session = await client.liveSession.findFirst({
+        where: {
+          id: request.sessionId,
+          tenantId: context.tenantId  // ← TENANT ISOLATION
+        }
       });
 
       if (!session) {
@@ -91,6 +102,7 @@ export class ClinicalNoteService extends BaseRepository {
     // Create note in DRAFT state
     const note = await client.clinicalNote.create({
       data: {
+        tenantId: context.tenantId,  // ← TENANT ISOLATION
         patientId: request.patientId,
         providerId: context.userId,
         sessionId: request.sessionId,
@@ -103,13 +115,13 @@ export class ClinicalNoteService extends BaseRepository {
     });
 
     // Audit log
-    await this.auditService.logCreate(
-      'ClinicalNote',
-      note.id,
-      context.userId,
-      { patientId: request.patientId, status: 'draft' },
-      context
-    );
+    await this.auditService.logCreate({
+      entityType: 'ClinicalNote',
+      entityId: note.id,
+      actorId: context.userId,
+      tenantId: context.tenantId,
+      metadata: { patientId: request.patientId, status: 'draft' }
+    });
 
     return note;
   }
@@ -129,14 +141,22 @@ export class ClinicalNoteService extends BaseRepository {
     request: UpdateClinicalNoteRequest,
     context: RequestContext
   ): Promise<ClinicalNote> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireWriteAccess(context);
 
     const client = this.getClient(context);
 
-    // Read current state from DB (MANDATORY)
-    const existingNote = await client.clinicalNote.findUnique({
-      where: { id: noteId },
+    // Read current state from DB (MANDATORY) with tenant isolation
+    const existingNote = await client.clinicalNote.findFirst({
+      where: {
+        id: noteId,
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
     });
 
     if (!existingNote) {
@@ -174,16 +194,16 @@ export class ClinicalNoteService extends BaseRepository {
     });
 
     // Audit log
-    await this.auditService.logUpdate(
-      'ClinicalNote',
-      noteId,
-      context.userId,
-      {
+    await this.auditService.logUpdate({
+      entityType: 'ClinicalNote',
+      entityId: noteId,
+      actorId: context.userId,
+      tenantId: context.tenantId,
+      metadata: {
         fieldsUpdated: Object.keys(request),
         previousStatus: existingNote.status,
-      },
-      context
-    );
+      }
+    });
 
     return updatedNote;
   }
@@ -206,14 +226,22 @@ export class ClinicalNoteService extends BaseRepository {
     noteId: string,
     context: RequestContext
   ): Promise<ClinicalNote> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireWriteAccess(context);
 
     const client = this.getClient(context);
 
-    // Read current state from DB (MANDATORY)
-    const existingNote = await client.clinicalNote.findUnique({
-      where: { id: noteId },
+    // Read current state from DB (MANDATORY) with tenant isolation
+    const existingNote = await client.clinicalNote.findFirst({
+      where: {
+        id: noteId,
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
     });
 
     if (!existingNote) {
@@ -247,23 +275,78 @@ export class ClinicalNoteService extends BaseRepository {
     });
 
     // Audit log (CRITICAL - this is a legal event)
-    await this.auditService.logEvent(
-      {
-        entityType: 'ClinicalNote',
-        entityId: noteId,
-        action: 'finalized',
-        actorId: context.userId,
-        metadata: {
-          patientId: existingNote.patientId,
-          previousStatus: 'draft',
-          newStatus: 'finalized',
-          finalizedAt: finalizedNote.finalizedAt?.toISOString(),
-        },
+    await this.auditService.logEvent({
+      entityType: 'ClinicalNote',
+      entityId: noteId,
+      action: 'finalized',
+      actorId: context.userId,
+      tenantId: context.tenantId,
+      metadata: {
+        patientId: existingNote.patientId,
+        previousStatus: 'draft',
+        newStatus: 'finalized',
+        finalizedAt: finalizedNote.finalizedAt?.toISOString(),
       },
-      context
-    );
+    });
 
     return finalizedNote;
+  }
+
+  /**
+   * Get clinical notes with tenant isolation
+   */
+  async getNotes(context: RequestContext, filters?: {
+    patientId?: string
+    providerId?: string
+    status?: ClinicalNoteStatus
+    limit?: number
+    offset?: number
+  }) {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
+    const client = this.getClient(context);
+
+    const where: any = {
+      tenantId: context.tenantId  // ← TENANT ISOLATION
+    }
+
+    // Parent access rules: parents cannot access clinical notes
+    if (context.role === UserRole.parent) {
+      // Parents cannot access any clinical notes
+      return { notes: [], total: 0 };
+    }
+
+    // Provider access rules: providers can only see their own notes
+    if (context.role === UserRole.provider) {
+      where.providerId = context.userId;
+    }
+    // Admins can see all notes in tenant
+
+    if (filters?.patientId) {
+      where.patientId = filters.patientId;
+    }
+    if (filters?.providerId) {
+      where.providerId = filters.providerId;
+    }
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    const [notes, total] = await Promise.all([
+      client.clinicalNote.findMany({
+        where,
+        include: { patient: true, provider: true },
+        orderBy: { createdAt: 'desc' },
+        take: filters?.limit || 50,
+        skip: filters?.offset || 0
+      }),
+      client.clinicalNote.count({ where })
+    ]);
+
+    return { notes, total };
   }
 
   /**

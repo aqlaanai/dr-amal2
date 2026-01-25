@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Frontend Auth Flow Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    .success { color: green; }
+    .error { color: red; }
+    .info { color: blue; }
+    button { padding: 10px; margin: 5px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Frontend Auth Flow Test</h1>
+  <button onclick="testSignin()">1. Sign In</button>
+  <button onclick="testCreatePatient()">2. Create Patient (with token)</button>
+  <button onclick="testCreatePatientNoToken()">3. Create Patient (no token)</button>
+  <button onclick="clearLogs()">Clear Logs</button>
+  
+  <div id="logs"></div>
+
+  <script>
+    const API_URL = 'http://localhost:3002';
+    let accessToken = null;
+
+    function log(message, type = 'info') {
+      const logsDiv = document.getElementById('logs');
+      const logDiv = document.createElement('div');
+      logDiv.className = `log ${type}`;
+      logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logsDiv.appendChild(logDiv);
+      console.log(`[${type}] ${message}`);
+    }
+
+    function clearLogs() {
+      document.getElementById('logs').innerHTML = '';
+    }
+
+    async function testSignin() {
+      log('Starting signin test...', 'info');
+      
+      try {
+        log('Sending POST to /api/auth/signin with credentials', 'info');
+        const response = await fetch(`${API_URL}/api/auth/signin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: 'provider@dramal.com',
+            password: 'Test123!'
+          })
+        });
+
+        log(`Response status: ${response.status}`, 'info');
+        const data = await response.json();
+        
+        if (data.accessToken) {
+          accessToken = data.accessToken;
+          localStorage.setItem('accessToken', accessToken);
+          log(`✅ Signin successful! Token saved to localStorage`, 'success');
+          log(`Token (first 30 chars): ${accessToken.substring(0, 30)}...`, 'info');
+        } else {
+          log(`❌ No token in response: ${JSON.stringify(data)}`, 'error');
+        }
+      } catch (err) {
+        log(`❌ Signin failed: ${err.message}`, 'error');
+      }
+    }
+
+    async function testCreatePatient() {
+      log('Starting patient creation test (WITH token)...', 'info');
+      
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        log(`❌ No token found in localStorage. Sign in first!`, 'error');
+        return;
+      }
+
+      log(`Found token in localStorage: ${token.substring(0, 30)}...`, 'info');
+
+      try {
+        log('Sending POST to /api/patients with Authorization header', 'info');
+        const response = await fetch(`${API_URL}/api/patients`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            firstName: 'TestFE',
+            lastName: 'User',
+            dateOfBirth: '2020-01-01'
+          })
+        });
+
+        log(`Response status: ${response.status}`, 'info');
+        const contentType = response.headers.get('content-type');
+        log(`Content-Type: ${contentType}`, 'info');
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          log(`✅ Patient created! ID: ${data.id}`, 'success');
+          log(`Patient name: ${data.firstName} ${data.lastName}`, 'success');
+        } else {
+          log(`❌ Failed to create patient (${response.status}): ${data.error}`, 'error');
+        }
+      } catch (err) {
+        log(`❌ Request failed: ${err.message}`, 'error');
+        log(`Error name: ${err.name}`, 'error');
+      }
+    }
+
+    async function testCreatePatientNoToken() {
+      log('Starting patient creation test (NO token)...', 'info');
+      
+      try {
+        log('Sending POST to /api/patients WITHOUT Authorization header', 'info');
+        const response = await fetch(`${API_URL}/api/patients`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            firstName: 'NoAuth',
+            lastName: 'User',
+            dateOfBirth: '2020-01-01'
+          })
+        });
+
+        log(`Response status: ${response.status}`, 'info');
+        const data = await response.json();
+        
+        if (response.status === 400) {
+          log(`✅ Correctly rejected (400): ${data.error}`, 'success');
+        } else {
+          log(`❌ Expected 400 but got ${response.status}`, 'error');
+        }
+      } catch (err) {
+        log(`❌ Request failed: ${err.message}`, 'error');
+      }
+    }
+
+    // Auto-test on page load
+    window.addEventListener('load', () => {
+      log('Page loaded. Ready to test.', 'info');
+    });
+  </script>
+</body>
+</html>

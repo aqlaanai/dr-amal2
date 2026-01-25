@@ -1,15 +1,43 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RestrictedState } from '@/components/states/RestrictedState'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
 import { withAuth } from '@/components/auth/withAuth'
+import { AppointmentForm } from '@/components/appointments/AppointmentForm'
+import { AppointmentList } from '@/components/appointments/AppointmentList'
+import { ApiClient } from '@/lib/api-client'
 
 function SchedulePage() {
   const { hasAccess } = useRoleAccess(['provider'])
+  const [showForm, setShowForm] = useState(false)
+  const [appointments, setAppointments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch appointments on mount
+  useEffect(() => {
+    fetchAppointments()
+  }, [])
+
+  const fetchAppointments = async () => {
+    try {
+      setLoading(true)
+      const response = await ApiClient.get<any>('/api/appointments', { limit: '50', offset: '0' })
+      setAppointments(response.data || [])
+    } catch (err) {
+      console.error('Failed to fetch appointments:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFormSuccess = () => {
+    setShowForm(false)
+    fetchAppointments()
+  }
 
   if (!hasAccess) {
     return (
@@ -18,6 +46,7 @@ function SchedulePage() {
       </AppShell>
     )
   }
+
   return (
     <AppShell>
       <PageHeader
@@ -25,17 +54,30 @@ function SchedulePage() {
         subtitle="Manage appointments and availability"
         primaryAction={{
           label: 'New Appointment',
-          onClick: () => {},
+          onClick: () => setShowForm(!showForm),
         }}
       />
-      <div className="p-8">
-        <div className="bg-white rounded-card border border-clinical-border">
-          <EmptyState
-            icon={<CalendarIcon />}
-            title="No appointments scheduled"
-            description="Start scheduling appointments to manage your clinical calendar."
+      <div className="p-8 space-y-6">
+        {/* Appointment Form */}
+        {showForm && (
+          <AppointmentForm
+            onSuccess={handleFormSuccess}
+            onCancel={() => setShowForm(false)}
           />
-        </div>
+        )}
+
+        {/* Appointments List */}
+        {appointments.length > 0 ? (
+          <AppointmentList appointments={appointments} loading={loading} />
+        ) : !showForm ? (
+          <div className="bg-white rounded-card border border-clinical-border">
+            <EmptyState
+              icon={<CalendarIcon />}
+              title="No appointments scheduled"
+              description="Start scheduling appointments to manage your clinical calendar."
+            />
+          </div>
+        ) : null}
       </div>
     </AppShell>
   )

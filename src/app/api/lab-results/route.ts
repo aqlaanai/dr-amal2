@@ -7,9 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getLabResultService } from '@/services/LabResultService';
-import { getRequestContext } from '@/lib/auth-context';
+import { getRequestContext, guardRouteAccess } from '@/lib/auth-context';
 import { logger, generateRequestId } from '@/lib/logger';
 import { metrics } from '@/lib/metrics';
+import { UserRole } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
   try {
     // Authenticate and get context
     const context = await getRequestContext(request);
+    
+    // API Guard: Only providers and admins can view lab results
+    guardRouteAccess(context, [UserRole.provider, UserRole.admin]);
     
     logger.info('Get lab results request', { requestId, userId: context.userId, endpoint: '/api/lab-results' });
 
@@ -37,7 +41,15 @@ export async function GET(request: NextRequest) {
     metrics.recordDuration('read.lab_results.duration', duration);
     logger.info('Get lab results success', { requestId, userId: context.userId, count: result.data.length, duration });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      data: result.data,
+      pagination: {
+        total: result.total,
+        limit: result.limit || 50,
+        offset: result.offset || 0,
+        hasMore: (result.offset || 0) + (result.limit || 50) < result.total,
+      },
+    });
 
   } catch (error) {
     const duration = Date.now() - startTime;

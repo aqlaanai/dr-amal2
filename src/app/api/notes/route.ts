@@ -1,9 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClinicalNoteService, CreateClinicalNoteRequest } from '@/services/ClinicalNoteService';
-import { getRequestContext } from '@/lib/auth-context';
+import { getRequestContext, guardRouteAccess } from '@/lib/auth-context';
 import { isRateLimited, getRateLimitInfo, RateLimits } from '@/lib/rate-limit';
 import { logger, generateRequestId } from '@/lib/logger';
 import { metrics } from '@/lib/metrics';
+import { getPrisma } from '@/repositories/BaseRepository';
+import { UserRole } from '@prisma/client';
+
+/**
+ * GET /api/notes
+ * Get paginated list of clinical notes
+ */
+export async function GET(request: NextRequest) {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  try {
+    // Authenticate and get context
+    const context = await getRequestContext(request);
+    
+    // API Guard: Only providers and admins can list clinical notes
+    guardRouteAccess(context, [UserRole.provider, UserRole.admin]);
+    
+    logger.info('Get clinical notes request', { requestId, userId: context.userId, role: context.role, endpoint: '/api/notes' });
+
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
+    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
+
+    // Initialize service
+    const service = getClinicalNoteService();
+
+    // Call service with context for tenant filtering
+    const result = await service.getNotes(context, { limit, offset });
+
+    const duration = Date.now() - startTime;
+    metrics.incrementCounter('read.notes.success');
+    metrics.recordDuration('read.notes.duration', duration);
+    logger.info('Get clinical notes success', { requestId, userId: context.userId, count: result.notes.length, duration });
+
+    // Return in standardized format
+    return NextResponse.json({
+      data: result.notes,
+      pagination: {
+        total: result.total,
+        limit: limit || 50,
+        offset: offset || 0,
+        hasMore: (offset || 0) + (limit || 50) < result.total,
+      },
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    metrics.incrementCounter('read.notes.failure');
+    logger.error('Get clinical notes failed', { requestId, duration }, error instanceof Error ? error : undefined);
+
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid or expired access token')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+
+      if (error.message.includes('Unauthorized')) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * POST /api/notes - Create a new clinical note (draft)
@@ -28,6 +106,9 @@ export async function POST(request: NextRequest) {
   try {
     // Get auth context
     const context = await getRequestContext(request);
+    
+    // API Guard: Only providers can create clinical notes
+    guardRouteAccess(context, [UserRole.provider]);
     
     logger.info('Create clinical note request', {
       requestId,
@@ -89,6 +170,13 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error) {
       // Handle specific errors
+      if (error.message.includes('Invalid or expired access token')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+
       if (error.message.includes('Forbidden')) {
         return NextResponse.json(
           { error: error.message },

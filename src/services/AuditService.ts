@@ -1,159 +1,110 @@
-import { BaseRepository } from '@/repositories/BaseRepository';
-import { RequestContext } from '@/types/context';
+import { getPrisma } from '@/repositories/BaseRepository'
+import { RequestContext } from '@/types/context'
 
-/**
- * Audit event payload
- */
-export interface AuditEvent {
-  /** Entity type being acted upon (e.g., 'User', 'Patient', 'ClinicalNote') */
-  entityType: string;
-  
-  /** ID of the entity */
-  entityId: string;
-  
-  /** Action performed (e.g., 'created', 'updated', 'deleted', 'viewed') */
-  action: string;
-  
-  /** User who performed the action */
-  actorId: string;
-  
-  /** Additional metadata (e.g., field changes, IP address) */
-  metadata?: Record<string, any>;
+export interface AuditLogInput {
+  action: string
+  userId: string
+  entityType: string
+  entityId: string
+  tenantId: string  // Make tenantId required
+  changes?: any
+  metadata?: any
 }
 
-/**
- * Centralized audit logging service
- * 
- * CRITICAL RULES:
- * - NEVER throws exceptions (logging failures must not break business logic)
- * - Append-only writes to AuditLog table
- * - Callable from anywhere in the application
- * - All failures are logged to console but swallowed
- */
-export class AuditService extends BaseRepository {
-  /**
-   * Log an audit event
-   * 
-   * @param event - Event to log
-   * @param context - Optional request context for correlation
-   */
-  async logEvent(event: AuditEvent, context?: RequestContext): Promise<void> {
+export class AuditService {
+  async createLog(input: AuditLogInput): Promise<void> {
+    const prisma = getPrisma()
+    
     try {
-      const client = this.getClient(context);
-      
-      await client.auditLog.create({
+      await prisma.auditLog.create({
         data: {
-          entityType: event.entityType,
-          entityId: event.entityId,
-          action: event.action,
-          actorId: event.actorId,
-          metadata: event.metadata ? JSON.stringify(event.metadata) : null,
-        },
-      });
+          tenantId: input.tenantId,  // Use actual tenantId from input
+          action: input.action,
+          actorId: input.userId,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          metadata: JSON.stringify(input.metadata || {}),
+          timestamp: new Date()
+        }
+      })
     } catch (error) {
-      // CRITICAL: Never throw on audit failure
-      // Log to console for monitoring but don't break business logic
-      console.error('[AuditService] Failed to log event:', {
-        event,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      console.error('Failed to create audit log:', error)
+      // Don't throw - audit logging should not break operations
     }
   }
 
-  /**
-   * Log user authentication event
-   */
-  async logAuth(
-    action: 'signup' | 'signin' | 'signout' | 'refresh',
-    userId: string,
-    metadata?: Record<string, any>,
-    context?: RequestContext
-  ): Promise<void> {
-    await this.logEvent(
-      {
-        entityType: 'User',
-        entityId: userId,
-        action,
-        actorId: userId,
-        metadata,
-      },
-      context
-    );
+  async getLogs(filters: {
+    tenantId: string;  // ← TENANT ISOLATION (required for security)
+    userId?: string
+    entityType?: string
+    entityId?: string
+    action?: string
+    startDate?: Date
+    endDate?: Date
+    limit?: number
+  }) {
+    const prisma = getPrisma()
+
+    const where: any = {
+      tenantId: filters.tenantId  // ← TENANT ISOLATION
+    }
+    if (filters?.userId) where.userId = filters.userId
+    if (filters?.entityType) where.entityType = filters.entityType
+    if (filters?.entityId) where.entityId = filters.entityId
+    if (filters?.action) where.action = filters.action
+    if (filters?.startDate || filters?.endDate) {
+      where.timestamp = {}
+      if (filters.startDate) where.timestamp.gte = filters.startDate
+      if (filters.endDate) where.timestamp.lte = filters.endDate
+    }
+
+    return prisma.auditLog.findMany({
+      where,
+      orderBy: { timestamp: 'desc' },
+      take: filters?.limit || 100
+    })
   }
 
-  /**
-   * Log entity creation
-   */
-  async logCreate(
-    entityType: string,
-    entityId: string,
-    actorId: string,
-    metadata?: Record<string, any>,
-    context?: RequestContext
-  ): Promise<void> {
-    await this.logEvent(
-      {
-        entityType,
-        entityId,
-        action: 'created',
-        actorId,
-        metadata,
-      },
-      context
-    );
+  // Legacy compatibility methods - all accept object input
+  async logCreate(input: { entityType: string; entityId: string; actorId: string; tenantId: string; metadata?: any }): Promise<void> {
+    return this.createLog({
+      action: `CREATE_${input.entityType.toUpperCase()}`,
+      userId: input.actorId,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      tenantId: input.tenantId,
+      metadata: input.metadata
+    })
   }
 
-  /**
-   * Log entity update
-   */
-  async logUpdate(
-    entityType: string,
-    entityId: string,
-    actorId: string,
-    changes: Record<string, any>,
-    context?: RequestContext
-  ): Promise<void> {
-    await this.logEvent(
-      {
-        entityType,
-        entityId,
-        action: 'updated',
-        actorId,
-        metadata: { changes },
-      },
-      context
-    );
+  async logUpdate(input: { entityType: string; entityId: string; actorId: string; tenantId: string; metadata?: any }): Promise<void> {
+    return this.createLog({
+      action: `UPDATE_${input.entityType.toUpperCase()}`,
+      userId: input.actorId,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      tenantId: input.tenantId,
+      metadata: input.metadata
+    })
   }
 
-  /**
-   * Log entity deletion
-   */
-  async logDelete(
-    entityType: string,
-    entityId: string,
-    actorId: string,
-    metadata?: Record<string, any>,
-    context?: RequestContext
-  ): Promise<void> {
-    await this.logEvent(
-      {
-        entityType,
-        entityId,
-        action: 'deleted',
-        actorId,
-        metadata,
-      },
-      context
-    );
+  async logEvent(input: { action: string; entityType: string; entityId: string; actorId: string; tenantId: string; metadata?: any }): Promise<void> {
+    return this.createLog({
+      action: input.action,
+      userId: input.actorId,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      tenantId: input.tenantId,
+      metadata: input.metadata
+    })
   }
 }
 
-// Export singleton instance
-let auditServiceInstance: AuditService | null = null;
+let auditServiceInstance: AuditService | null = null
 
 export function getAuditService(): AuditService {
   if (!auditServiceInstance) {
-    auditServiceInstance = new AuditService();
+    auditServiceInstance = new AuditService()
   }
-  return auditServiceInstance;
+  return auditServiceInstance
 }

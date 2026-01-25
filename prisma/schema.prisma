@@ -6,9 +6,10 @@ generator client {
   engineType = "binary"
 }
 
-// Connection URL is configured in prisma.config.ts
+// Connection URL is configured via environment variable
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ============================================================================
@@ -54,42 +55,64 @@ enum LabResultStatus {
   archived
 }
 
+enum ImagingStatus {
+  ordered
+  scheduled
+  completed
+  cancelled
+}
+
 // ============================================================================
 // USERS TABLE - Identity and authentication
 // ============================================================================
 model User {
   id            String        @id @default(uuid())
+  tenantId      String
   email         String        @unique
   passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
   role          UserRole
   accountStatus AccountStatus @default(pending)
 
   // Session management (required for Issue 1 auth)
   refreshToken String?
+  lastLoginAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relationships
   providedSessions LiveSession[]
-  orderedLabs      LabResult[]    @relation("OrderedLabs")
+  orderedLabs      LabResult[]      @relation("OrderedLabs")
+  orderedImaging   ImagingOrder[]   @relation("OrderedImaging")
   clinicalNotes    ClinicalNote[]
   prescriptions    Prescription[]
   auditLogs        AuditLog[]
 
   @@index([email])
   @@index([accountStatus])
+  @@index([tenantId])
 }
 
 // ============================================================================
 // PATIENTS TABLE - Patient registry
 // ============================================================================
 model Patient {
-  id          String   @id @default(uuid())
-  firstName   String
-  lastName    String
-  dateOfBirth DateTime
-  status      String   @default("active")
+  id                  String   @id @default(uuid())
+  tenantId            String
+  firstName           String
+  lastName            String
+  dateOfBirth         DateTime
+  email               String?
+  phone               String?
+  address             String?
+  emergencyContact    String?
+  emergencyPhone      String?
+  medicalRecordNumber String?  @unique
+  guardianEmail       String?
+  status              String   @default("active")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -99,11 +122,13 @@ model Patient {
   clinicalNotes ClinicalNote[]
   prescriptions Prescription[]
   labResults    LabResult[]
+  imagingOrders ImagingOrder[]
 
   @@index([firstName])
   @@index([lastName])
   @@index([dateOfBirth])
   @@index([status])
+  @@index([tenantId])
 }
 
 // ============================================================================
@@ -111,6 +136,7 @@ model Patient {
 // ============================================================================
 model LiveSession {
   id          String        @id @default(uuid())
+  tenantId    String
   patientId   String
   providerId  String
   status      SessionStatus
@@ -129,6 +155,7 @@ model LiveSession {
   @@index([patientId, status])
   @@index([providerId, scheduledAt])
   @@index([scheduledAt])
+  @@index([tenantId])
 }
 
 // ============================================================================
@@ -136,6 +163,7 @@ model LiveSession {
 // ============================================================================
 model ClinicalNote {
   id          String             @id @default(uuid())
+  tenantId    String
   patientId   String
   providerId  String
   status      ClinicalNoteStatus
@@ -158,6 +186,7 @@ model ClinicalNote {
   @@index([patientId, status])
   @@index([providerId, createdAt])
   @@index([sessionId])
+  @@index([tenantId])
 }
 
 // ============================================================================
@@ -165,6 +194,7 @@ model ClinicalNote {
 // ============================================================================
 model Prescription {
   id           String             @id @default(uuid())
+  tenantId     String
   patientId    String
   providerId   String
   medication   String
@@ -184,6 +214,7 @@ model Prescription {
   @@index([patientId, status])
   @@index([providerId, issuedAt])
   @@index([medication])
+  @@index([tenantId])
 }
 
 // ============================================================================
@@ -191,6 +222,7 @@ model Prescription {
 // ============================================================================
 model LabResult {
   id            String          @id @default(uuid())
+  tenantId      String
   patientId     String
   orderedBy     String
   resultSummary String?
@@ -206,6 +238,37 @@ model LabResult {
 
   @@index([patientId, status])
   @@index([orderedBy, createdAt])
+  @@index([tenantId])
+}
+
+// ============================================================================
+// IMAGING_ORDERS TABLE - Medical imaging orders and results
+// ============================================================================
+model ImagingOrder {
+  id                 String        @id @default(uuid())
+  tenantId           String
+  patientId          String
+  providerId         String
+  studyType          String // e.g., "X-Ray", "CT Scan", "MRI", "Ultrasound"
+  bodyPart           String // e.g., "Chest", "Head", "Abdomen"
+  clinicalIndication String // Reason for study
+  urgency            String        @default("routine") // "routine", "urgent", "stat"
+  status             ImagingStatus @default(ordered)
+  scheduledAt        DateTime?
+  completedAt        DateTime?
+  findings           String? // Radiologist findings (after completion)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  provider User    @relation("OrderedImaging", fields: [providerId], references: [id], onDelete: Restrict)
+
+  @@index([patientId, status])
+  @@index([providerId, createdAt])
+  @@index([status])
+  @@index([tenantId])
 }
 
 // ============================================================================
@@ -213,6 +276,7 @@ model LabResult {
 // ============================================================================
 model AuditLog {
   id         String   @id @default(uuid())
+  tenantId   String
   actorId    String
   action     String
   entityType String
@@ -226,4 +290,5 @@ model AuditLog {
   @@index([actorId, timestamp])
   @@index([entityType, entityId, timestamp])
   @@index([action, timestamp])
+  @@index([tenantId])
 }

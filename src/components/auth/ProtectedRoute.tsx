@@ -1,48 +1,64 @@
 /**
  * Protected Route Component
- * Enforces authentication on protected pages
+ * Wraps content that requires authentication
  */
 
-'use client'
+'use client';
 
-import React, { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
-import { LoadingState } from '@/components/states/LoadingState'
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { LoadingState } from '@/components/states/LoadingState';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
-  requiredRole?: string[]
+  children: React.ReactNode;
+  requiredRoles?: string[];
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requiredRole 
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  requiredRoles,
 }) => {
-  const { user, isLoading } = useAuth()
-  const router = useRouter()
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/auth/signin')
+    if (isLoading) return;
+
+    // Check if user is authenticated
+    if (!user) {
+      setHasRedirected(true);
+      router.push('/auth/signin');
+      setIsAuthorized(false);
+      return;
     }
-    
-    if (!isLoading && user && requiredRole && !requiredRole.includes(user.role)) {
-      router.push('/overview')
+
+    // If roles are required, check user role
+    if (requiredRoles && requiredRoles.length > 0) {
+      if (!requiredRoles.includes(user.role)) {
+        setHasRedirected(true);
+        router.push('/');
+        setIsAuthorized(false);
+        return;
+      }
     }
-  }, [user, isLoading, router, requiredRole])
+
+    setIsAuthorized(true);
+  }, [user, isLoading, router, requiredRoles]);
 
   if (isLoading) {
-    return <LoadingState />
+    return <LoadingState message="Checking authentication..." />;
   }
 
-  if (!user) {
-    return null
+  if (hasRedirected || isAuthorized === null) {
+    return <LoadingState message="Loading..." />;
   }
 
-  if (requiredRole && !requiredRole.includes(user.role)) {
-    return null
+  if (!isAuthorized) {
+    return null;
   }
 
-  return <>{children}</>
-}
+  return <>{children}</>;
+};

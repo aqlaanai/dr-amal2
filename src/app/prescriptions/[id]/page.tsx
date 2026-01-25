@@ -75,7 +75,7 @@ function PrescriptionDetailPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requiredRole={['provider', 'admin']}>
+      <ProtectedRoute requiredRoles={['provider', 'admin']}>
         <AppShell>
           <div className="flex justify-center items-center h-64">
             <div className="text-gray-500">Loading prescription...</div>
@@ -87,7 +87,7 @@ function PrescriptionDetailPage() {
 
   if (error || !prescription) {
     return (
-      <ProtectedRoute requiredRole={['provider', 'admin']}>
+      <ProtectedRoute requiredRoles={['provider', 'admin']}>
         <AppShell>
           <div className="max-w-4xl mx-auto p-8">
             <Alert type="danger" message={error || 'Prescription not found'} />
@@ -111,7 +111,7 @@ function PrescriptionDetailPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title={`Prescription - ${prescription.patientId}`}

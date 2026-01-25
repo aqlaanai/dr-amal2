@@ -68,6 +68,9 @@ export async function createTestUser(overrides?: {
   email?: string
   role?: UserRole
   accountStatus?: AccountStatus
+  tenantId?: string
+  firstName?: string
+  lastName?: string
 }) {
   const prisma = getTestPrisma()
   
@@ -76,8 +79,11 @@ export async function createTestUser(overrides?: {
   
   const user = await prisma.user.create({
     data: {
+      tenantId: overrides?.tenantId || 'clinic_default',
       email,
       passwordHash,
+      firstName: overrides?.firstName || 'Test',
+      lastName: overrides?.lastName || 'User',
       role: (overrides?.role || 'provider') as UserRole,
       accountStatus: (overrides?.accountStatus || 'active') as AccountStatus,
     },
@@ -86,7 +92,8 @@ export async function createTestUser(overrides?: {
   const accessToken = generateAccessToken({ 
     userId: user.id, 
     email: user.email,
-    role: user.role 
+    role: user.role,
+    tenantId: user.tenantId
   })
   
   return { user, accessToken }
@@ -100,11 +107,13 @@ export async function createTestPatient(overrides?: {
   lastName?: string
   dateOfBirth?: Date
   status?: string
+  tenantId?: string
 }) {
   const prisma = getTestPrisma()
   
   const patient = await prisma.patient.create({
     data: {
+      tenantId: overrides?.tenantId || 'clinic_default',
       firstName: overrides?.firstName || 'Test',
       lastName: overrides?.lastName || 'Patient',
       dateOfBirth: overrides?.dateOfBirth || new Date('2010-01-01'),
@@ -133,6 +142,7 @@ export async function createTestNote(
   
   const note = await prisma.clinicalNote.create({
     data: {
+      tenantId: 'clinic_default',
       patientId,
       providerId,
       status: (overrides?.status || 'draft') as ClinicalNoteStatus,
@@ -163,6 +173,7 @@ export async function createTestPrescription(
   
   const prescription = await prisma.prescription.create({
     data: {
+      tenantId: 'clinic_default',
       patientId,
       providerId,
       medication: overrides?.medication || 'Test Medication',

@@ -7,9 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPatientService } from '@/services/PatientService';
-import { getRequestContext } from '@/lib/auth-context';
+import { getRequestContext, guardRecordAccess } from '@/lib/auth-context';
 import { logger, generateRequestId } from '@/lib/logger';
 import { metrics } from '@/lib/metrics';
+import { UserRole } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
@@ -30,7 +31,7 @@ export async function GET(
     // Initialize service
     const patientService = getPatientService();
 
-    // Call service
+    // Call service to get patient (this already applies tenant filtering)
     const patient = await patientService.getPatientById(patientId, context);
 
     if (!patient) {
@@ -39,6 +40,9 @@ export async function GET(
       logger.warn('Patient not found', { requestId, patientId, duration });
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
+
+    // API Guard: Only providers and admins can access individual patient records
+    guardRecordAccess(context, [UserRole.provider, UserRole.admin], patient.id);
 
     const duration = Date.now() - startTime;
     metrics.incrementCounter('read.patient.success');

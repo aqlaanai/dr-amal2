@@ -1,15 +1,50 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { RestrictedState } from '@/components/states/RestrictedState'
+import { StartSessionModal } from '@/components/sessions/StartSessionModal'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
 import { withAuth } from '@/components/auth/withAuth'
+import { useRouter } from 'next/navigation'
 
 function SessionsPage() {
   const { hasAccess } = useRoleAccess(['provider'])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const router = useRouter()
+
+  const handleStartSession = async (data: { patientId: string; scheduledAt: string }) => {
+    try {
+      const response = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify(data)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create appointment')
+      }
+
+      const appointment = await response.json()
+
+      // Navigate to the session page or refresh the list
+      // For now, we'll just close the modal and could show a success message
+      console.log('Appointment created:', appointment)
+
+      // Optionally refresh the page or update the sessions list
+      // router.refresh()
+
+    } catch (error) {
+      console.error('Failed to create session:', error)
+      throw error // Re-throw to let the modal handle the error
+    }
+  }
 
   return (
     <AppShell>
@@ -20,10 +55,10 @@ function SessionsPage() {
             subtitle="Active and scheduled telehealth consultations"
             primaryAction={{
               label: 'Start Session',
-              onClick: () => {},
+              onClick: () => setIsModalOpen(true),
             }}
           />
-          <div className="p-8">
+          <div className="p-4 sm:p-6 lg:p-8">
             <div className="bg-white rounded-card border border-clinical-border">
               <EmptyState
                 icon={<SessionIcon />}
@@ -32,6 +67,12 @@ function SessionsPage() {
               />
             </div>
           </div>
+
+          <StartSessionModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSubmit={handleStartSession}
+          />
         </>
       ) : (
         <RestrictedState />

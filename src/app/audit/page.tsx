@@ -64,7 +64,7 @@ export default function AuditPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['admin']}>
+    <ProtectedRoute requiredRoles={['admin']}>
       <AppShell>
         <PageHeader
           title="Audit Logs"

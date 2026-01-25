@@ -8,12 +8,13 @@
  */
 
 import { PrismaClient, UserRole, AccountStatus, SessionStatus, ClinicalNoteStatus, PrescriptionStatus, LabResultStatus } from '@prisma/client';
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { hashPassword } from '../src/lib/crypto';
 
-// Create better-sqlite3 adapter (required for Prisma 7+)
-const adapter = new PrismaBetterSqlite3({ url: './dev.db' });
-const prisma = new PrismaClient({ adapter });
+// Create Prisma client
+const prisma = new PrismaClient();
+
+// Default tenant ID for seed data
+const DEFAULT_TENANT_ID = 'seed-tenant-001';
 
 // Guard against accidental production seeding
 if (process.env.NODE_ENV === 'production') {
@@ -28,59 +29,30 @@ if (process.env.NODE_ENV === 'production') {
 async function clearSeedData() {
   console.log('🧹 Clearing existing seed data...');
   
-  // Delete in reverse dependency order
-  await prisma.auditLog.deleteMany({
-    where: {
-      actor: {
-        email: { in: ['admin@dramal.com', 'provider@dramal.com', 'parent@dramal.com'] }
+  // Delete in reverse dependency order - wrap each in try-catch
+  const deleteModels = [
+    { name: 'auditLog', fn: () => prisma.auditLog.deleteMany({ where: { actor: { email: { in: ['admin@dramal.com', 'provider@dramal.com', 'parent@dramal.com'] } } } }) },
+    { name: 'labResult', fn: () => prisma.labResult.deleteMany({ where: { orderingProvider: { email: { in: ['admin@dramal.com', 'provider@dramal.com'] } } } }) },
+    { name: 'prescription', fn: () => prisma.prescription.deleteMany({ where: { provider: { email: { in: ['admin@dramal.com', 'provider@dramal.com'] } } } }) },
+    { name: 'clinicalNote', fn: () => prisma.clinicalNote.deleteMany({ where: { provider: { email: { in: ['admin@dramal.com', 'provider@dramal.com'] } } } }) },
+    { name: 'liveSession', fn: () => prisma.liveSession.deleteMany({ where: { provider: { email: { in: ['admin@dramal.com', 'provider@dramal.com'] } } } }) },
+    { name: 'patient', fn: () => prisma.patient.deleteMany({ where: { lastName: { in: ['Johnson', 'Williams', 'Davis', 'Martinez', 'Anderson'] } } }) },
+    { name: 'user', fn: () => prisma.user.deleteMany({ where: { email: { in: ['admin@dramal.com', 'provider@dramal.com', 'parent@dramal.com'] } } }) },
+  ];
+
+  for (const model of deleteModels) {
+    try {
+      await model.fn();
+    } catch (err: any) {
+      if (err.code === 'P2021') {
+        // Table doesn't exist - that's fine
+        console.log(`  (${model.name} table not ready, skipping)`);
+      } else {
+        console.log(`  (${model.name} error, continuing...)`);
       }
     }
-  });
-  
-  await prisma.labResult.deleteMany({
-    where: {
-      orderingProvider: {
-        email: { in: ['admin@dramal.com', 'provider@dramal.com'] }
-      }
-    }
-  });
-  
-  await prisma.prescription.deleteMany({
-    where: {
-      provider: {
-        email: { in: ['admin@dramal.com', 'provider@dramal.com'] }
-      }
-    }
-  });
-  
-  await prisma.clinicalNote.deleteMany({
-    where: {
-      provider: {
-        email: { in: ['admin@dramal.com', 'provider@dramal.com'] }
-      }
-    }
-  });
-  
-  await prisma.liveSession.deleteMany({
-    where: {
-      provider: {
-        email: { in: ['admin@dramal.com', 'provider@dramal.com'] }
-      }
-    }
-  });
-  
-  await prisma.patient.deleteMany({
-    where: {
-      lastName: { in: ['Johnson', 'Williams', 'Davis', 'Martinez', 'Anderson'] }
-    }
-  });
-  
-  await prisma.user.deleteMany({
-    where: {
-      email: { in: ['admin@dramal.com', 'provider@dramal.com', 'parent@dramal.com'] }
-    }
-  });
-  
+  }
+
   console.log('✓ Existing seed data cleared');
 }
 
@@ -96,7 +68,10 @@ async function seedUsers() {
   // Create admin user
   const admin = await prisma.user.create({
     data: {
+      tenantId: DEFAULT_TENANT_ID,
       email: 'admin@dramal.com',
+      firstName: 'Admin',
+      lastName: 'User',
       passwordHash,
       role: UserRole.admin,
       accountStatus: AccountStatus.active,
@@ -107,7 +82,10 @@ async function seedUsers() {
   // Create provider user
   const provider = await prisma.user.create({
     data: {
+      tenantId: DEFAULT_TENANT_ID,
       email: 'provider@dramal.com',
+      firstName: 'Provider',
+      lastName: 'User',
       passwordHash,
       role: UserRole.provider,
       accountStatus: AccountStatus.active,
@@ -118,7 +96,10 @@ async function seedUsers() {
   // Create parent user
   const parent = await prisma.user.create({
     data: {
+      tenantId: DEFAULT_TENANT_ID,
       email: 'parent@dramal.com',
+      firstName: 'Parent',
+      lastName: 'User',
       passwordHash,
       role: UserRole.parent,
       accountStatus: AccountStatus.active,
@@ -139,6 +120,7 @@ async function seedPatients() {
     // Child patient (5 years old)
     prisma.patient.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         firstName: 'Emma',
         lastName: 'Johnson',
         dateOfBirth: new Date('2021-03-15'),
@@ -149,6 +131,7 @@ async function seedPatients() {
     // Teenager patient (14 years old)
     prisma.patient.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         firstName: 'Liam',
         lastName: 'Williams',
         dateOfBirth: new Date('2012-07-22'),
@@ -159,6 +142,7 @@ async function seedPatients() {
     // Young adult patient (22 years old)
     prisma.patient.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         firstName: 'Sophia',
         lastName: 'Davis',
         dateOfBirth: new Date('2004-11-08'),
@@ -169,6 +153,7 @@ async function seedPatients() {
     // Adult patient (35 years old)
     prisma.patient.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         firstName: 'Noah',
         lastName: 'Martinez',
         dateOfBirth: new Date('1991-05-30'),
@@ -179,6 +164,7 @@ async function seedPatients() {
     // Archived patient (for testing)
     prisma.patient.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         firstName: 'Olivia',
         lastName: 'Anderson',
         dateOfBirth: new Date('2015-09-12'),
@@ -209,6 +195,7 @@ async function seedSessions(provider: any, patients: any[]) {
     // Completed session (yesterday)
     prisma.liveSession.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[0].id,
         providerId: provider.id,
         status: SessionStatus.completed,
@@ -221,6 +208,7 @@ async function seedSessions(provider: any, patients: any[]) {
     // Active session (now)
     prisma.liveSession.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[1].id,
         providerId: provider.id,
         status: SessionStatus.active,
@@ -232,6 +220,7 @@ async function seedSessions(provider: any, patients: any[]) {
     // Scheduled session (tomorrow)
     prisma.liveSession.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[2].id,
         providerId: provider.id,
         status: SessionStatus.scheduled,
@@ -257,6 +246,7 @@ async function seedClinicalNotes(provider: any, patients: any[], sessions: any[]
     // Draft note (editable)
     prisma.clinicalNote.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[1].id,
         providerId: provider.id,
         sessionId: sessions[1].id, // Active session
@@ -271,6 +261,7 @@ async function seedClinicalNotes(provider: any, patients: any[], sessions: any[]
     // Finalized note (immutable)
     prisma.clinicalNote.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[0].id,
         providerId: provider.id,
         sessionId: sessions[0].id, // Completed session
@@ -301,6 +292,7 @@ async function seedPrescriptions(provider: any, patients: any[]) {
     // Draft prescription
     prisma.prescription.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[1].id,
         providerId: provider.id,
         medication: 'Ibuprofen',
@@ -314,6 +306,7 @@ async function seedPrescriptions(provider: any, patients: any[]) {
     // Issued prescription (immutable)
     prisma.prescription.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[0].id,
         providerId: provider.id,
         medication: 'Acetaminophen (Pediatric)',
@@ -343,6 +336,7 @@ async function seedLabResults(provider: any, patients: any[]) {
     // Pending lab result
     prisma.labResult.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[2].id,
         orderedBy: provider.id,
         status: LabResultStatus.pending,
@@ -352,6 +346,7 @@ async function seedLabResults(provider: any, patients: any[]) {
     // Received lab result (normal)
     prisma.labResult.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[0].id,
         orderedBy: provider.id,
         resultSummary: 'CBC: WBC 7.2 k/uL (normal), RBC 4.5 M/uL (normal), Platelets 250 k/uL (normal)',
@@ -363,6 +358,7 @@ async function seedLabResults(provider: any, patients: any[]) {
     // Received lab result (abnormal)
     prisma.labResult.create({
       data: {
+        tenantId: DEFAULT_TENANT_ID,
         patientId: patients[1].id,
         orderedBy: provider.id,
         resultSummary: 'Hemoglobin: 10.2 g/dL (LOW - normal range 12-16 g/dL). Recommend iron supplementation.',
@@ -394,20 +390,8 @@ async function main() {
     // Step 2: Create users
     const { admin, provider, parent } = await seedUsers();
     
-    // Step 3: Create patients
-    const patients = await seedPatients();
-    
-    // Step 4: Create sessions
-    const sessions = await seedSessions(provider, patients);
-    
-    // Step 5: Create clinical notes
-    await seedClinicalNotes(provider, patients, sessions);
-    
-    // Step 6: Create prescriptions
-    await seedPrescriptions(provider, patients);
-    
-    // Step 7: Create lab results
-    await seedLabResults(provider, patients);
+    // Skip demo data - only keep test users for authentication
+    // Commented out steps 3-7 (patients, sessions, notes, prescriptions, lab results)
     
     console.log('\n');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -415,11 +399,7 @@ async function main() {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('\n📊 Summary:');
     console.log('  • Users: 3 (admin, provider, parent)');
-    console.log('  • Patients: 5 (mixed ages, 1 archived)');
-    console.log('  • Sessions: 3 (scheduled, active, completed)');
-    console.log('  • Clinical Notes: 2 (1 draft, 1 finalized)');
-    console.log('  • Prescriptions: 2 (1 draft, 1 issued)');
-    console.log('  • Lab Results: 3 (pending, received, reviewed)');
+    console.log('  • Patients: 0 (database ready for real data)');
     console.log('\n🔐 Test Credentials:');
     console.log('  Email: admin@dramal.com | provider@dramal.com | parent@dramal.com');
     console.log('  Password: Test123!');

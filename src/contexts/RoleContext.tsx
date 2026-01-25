@@ -1,6 +1,7 @@
 'use client'
 
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useAuth } from './AuthContext'
 
 export type UserRole = 'provider' | 'admin' | 'parent'
 
@@ -16,8 +17,18 @@ interface RoleProviderProps {
 }
 
 export const RoleProvider: React.FC<RoleProviderProps> = ({ children }) => {
-  // Default to provider role for development
-  const [role, setRole] = useState<UserRole>('provider')
+  const { user } = useAuth()
+  // Sync role with authenticated user's role
+  const [role, setRole] = useState<UserRole>(
+    (user?.role as UserRole) || 'provider'
+  )
+
+  // Update role when user changes
+  useEffect(() => {
+    if (user?.role) {
+      setRole(user.role as UserRole)
+    }
+  }, [user])
 
   return (
     <RoleContext.Provider value={{ role, setRole }}>

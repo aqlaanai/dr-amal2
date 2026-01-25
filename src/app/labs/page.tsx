@@ -42,6 +42,14 @@ export default function LabsPage() {
   const [labs, setLabs] = useState<LabResult[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [formLoading, setFormLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    patientId: '',
+    testName: '',
+    orderingProvider: '',
+  })
   
   // AI explanation state
   const [aiLoading, setAiLoading] = useState(false)
@@ -54,11 +62,12 @@ export default function LabsPage() {
     async function fetchLabs() {
       try {
         setLoading(true)
-        const response = await ApiClient.get<{ labs: LabResult[] }>('/api/lab-results')
-        setLabs(response.labs || [])
+        const response = await ApiClient.get<any>('/api/lab-results?limit=50&offset=0')
+        setLabs(response.data || [])
         setError(null)
       } catch (err: any) {
-        setError(err.error || 'Failed to load lab results')
+        console.error('Failed to load lab results:', err)
+        setError(err?.message || err?.error || 'Failed to load lab results')
       } finally {
         setLoading(false)
       }
@@ -66,6 +75,39 @@ export default function LabsPage() {
 
     fetchLabs()
   }, [])
+
+  const handleOrderTest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!formData.patientId || !formData.testName) {
+      setFormError('Patient ID and test name are required')
+      return
+    }
+
+    try {
+      setFormLoading(true)
+      setFormError(null)
+      
+      // Create a new lab order
+      const newLab = await ApiClient.post<LabResult>('/api/lab-results', {
+        patientId: formData.patientId,
+        testName: formData.testName,
+        orderingProvider: formData.orderingProvider || undefined,
+      })
+      
+      setLabs([newLab, ...labs])
+      setFormData({
+        patientId: '',
+        testName: '',
+        orderingProvider: '',
+      })
+      setShowForm(false)
+    } catch (err: any) {
+      setFormError(err.error || 'Failed to order lab test')
+    } finally {
+      setFormLoading(false)
+    }
+  }
 
   const handleGetAIExplanation = async (lab: LabResult) => {
     if (!lab.labId) {
@@ -120,14 +162,89 @@ export default function LabsPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title="Lab Results"
           subtitle="Laboratory test orders and results"
+          primaryAction={{
+            label: '+ Order Test',
+            onClick: () => setShowForm(!showForm),
+          }}
         />
 
         <div className="p-8">
+          {/* Order Lab Test Form */}
+          {showForm && (
+            <div className="mb-8 bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Lab Test</h2>
+              
+              {formError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                  {formError}
+                </div>
+              )}
+
+              <form onSubmit={handleOrderTest} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Patient ID *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.patientId}
+                    onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter patient ID"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.testName}
+                    onChange={(e) => setFormData({ ...formData, testName: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Complete Blood Count (CBC)"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ordering Provider
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.orderingProvider}
+                    onChange={(e) => setFormData({ ...formData, orderingProvider: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter provider name (optional)"
+                  />
+                </div>
+
+                <div className="md:col-span-2 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={formLoading}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                  >
+                    {formLoading ? 'Ordering...' : 'Order Lab Test'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {loading && <LoadingState />}
 
           {error && (

@@ -74,6 +74,7 @@ describe('State Machine Tests', () => {
       const prisma = getTestPrisma()
       const note = await prisma.clinicalNote.create({
         data: {
+          tenantId: 'clinic_default',
           patientId: patient.id,
           providerId: user.id,
           status: 'finalized',
@@ -109,6 +110,7 @@ describe('State Machine Tests', () => {
       const prisma = getTestPrisma()
       const note = await prisma.clinicalNote.create({
         data: {
+          tenantId: 'clinic_default',
           patientId: patient.id,
           providerId: user.id,
           status: 'finalized',
@@ -185,6 +187,7 @@ describe('State Machine Tests', () => {
       const prisma = getTestPrisma()
       const prescription = await prisma.prescription.create({
         data: {
+          tenantId: 'clinic_default',
           patientId: patient.id,
           providerId: user.id,
           medication: 'Amoxicillin',
@@ -219,6 +222,7 @@ describe('State Machine Tests', () => {
       const prisma = getTestPrisma()
       const prescription = await prisma.prescription.create({
         data: {
+          tenantId: 'clinic_default',
           patientId: patient.id,
           providerId: user.id,
           medication: 'Original Medicine',
@@ -322,6 +326,7 @@ describe('State Machine Tests', () => {
       const prisma = getTestPrisma()
       const note = await prisma.clinicalNote.create({
         data: {
+          tenantId: 'clinic_default',
           patientId: patient.id,
           providerId: user.id,
           status: 'finalized',
@@ -356,6 +361,7 @@ describe('State Machine Tests', () => {
       const prisma = getTestPrisma()
       const prescription = await prisma.prescription.create({
         data: {
+          tenantId: 'clinic_default',
           patientId: patient.id,
           providerId: user.id,
           status: 'issued',

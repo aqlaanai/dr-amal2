@@ -61,6 +61,13 @@ export async function POST(
 
     if (error instanceof Error) {
       // Handle specific errors
+      if (error.message.includes('Invalid or expired access token')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+
       if (error.message.includes('Forbidden') || error.message.includes('Cannot issue')) {
         return NextResponse.json(
           { error: error.message },

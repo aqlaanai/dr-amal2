@@ -85,11 +85,12 @@ export default function NotesPage() {
     async function fetchNotes() {
       try {
         setLoading(true)
-        const response = await ApiClient.get<{ notes: ClinicalNote[] }>('/api/notes?limit=50')
-        setNotes(response.notes || [])
+        const response = await ApiClient.get<any>('/api/notes?limit=50&offset=0')
+        setNotes(response.data || [])
         setError(null)
       } catch (err: any) {
-        setError(err.error || 'Failed to load clinical notes')
+        console.error('Failed to load notes:', err)
+        setError(err?.message || err?.error || 'Failed to load clinical notes')
       } finally {
         setLoading(false)
       }
@@ -220,7 +221,7 @@ export default function NotesPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title="Clinical Notes"

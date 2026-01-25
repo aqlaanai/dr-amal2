@@ -51,14 +51,22 @@ export class PrescriptionService extends BaseRepository {
     request: CreatePrescriptionRequest,
     context: RequestContext
   ): Promise<Prescription> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireWriteAccess(context);
 
     const client = this.getClient(context);
 
-    // Verify patient exists
-    const patient = await client.patient.findUnique({
-      where: { id: request.patientId },
+    // Verify patient exists with tenant isolation
+    const patient = await client.patient.findFirst({
+      where: {
+        id: request.patientId,
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
     });
 
     if (!patient) {
@@ -68,6 +76,7 @@ export class PrescriptionService extends BaseRepository {
     // Create prescription in DRAFT state
     const prescription = await client.prescription.create({
       data: {
+        tenantId: context.tenantId,  // ← TENANT ISOLATION
         patientId: request.patientId,
         providerId: context.userId,
         status: PrescriptionStatus.draft,
@@ -79,17 +88,17 @@ export class PrescriptionService extends BaseRepository {
     });
 
     // Audit log
-    await this.auditService.logCreate(
-      'Prescription',
-      prescription.id,
-      context.userId,
-      {
+    await this.auditService.logCreate({
+      entityType: 'Prescription',
+      entityId: prescription.id,
+      actorId: context.userId,
+      tenantId: context.tenantId,
+      metadata: {
         patientId: request.patientId,
         medication: request.medication,
         status: 'draft',
-      },
-      context
-    );
+      }
+    });
 
     return prescription;
   }
@@ -112,14 +121,22 @@ export class PrescriptionService extends BaseRepository {
     prescriptionId: string,
     context: RequestContext
   ): Promise<Prescription> {
+    // Fail-fast: ensure tenant context exists
+    if (!context.tenantId) {
+      throw new Error('Security violation: Request context missing tenantId');
+    }
+
     // Authorization check
     this.requireWriteAccess(context);
 
     const client = this.getClient(context);
 
-    // Read current state from DB (MANDATORY)
-    const existingPrescription = await client.prescription.findUnique({
-      where: { id: prescriptionId },
+    // Read current state from DB (MANDATORY) with tenant isolation
+    const existingPrescription = await client.prescription.findFirst({
+      where: {
+        id: prescriptionId,
+        tenantId: context.tenantId  // ← TENANT ISOLATION
+      }
     });
 
     if (!existingPrescription) {
@@ -159,6 +176,7 @@ export class PrescriptionService extends BaseRepository {
         entityId: prescriptionId,
         action: 'issued',
         actorId: context.userId,
+        tenantId: context.tenantId,
         metadata: {
           patientId: existingPrescription.patientId,
           medication: existingPrescription.medication,
@@ -167,7 +185,6 @@ export class PrescriptionService extends BaseRepository {
           issuedAt: issuedPrescription.issuedAt?.toISOString(),
         },
       },
-      context
     );
 
     return issuedPrescription;

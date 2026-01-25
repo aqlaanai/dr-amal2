@@ -1,9 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPrescriptionService, CreatePrescriptionRequest } from '@/services/PrescriptionService';
-import { getRequestContext } from '@/lib/auth-context';
+import { getRequestContext, guardRouteAccess } from '@/lib/auth-context';
 import { isRateLimited, getRateLimitInfo, RateLimits } from '@/lib/rate-limit';
 import { logger, generateRequestId } from '@/lib/logger';
 import { metrics } from '@/lib/metrics';
+import { getPrisma } from '@/repositories/BaseRepository';
+import { UserRole } from '@prisma/client';
+
+/**
+ * GET /api/prescriptions
+ * Get paginated list of prescriptions
+ */
+export async function GET(request: NextRequest) {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  try {
+    // Authenticate and get context
+    const context = await getRequestContext(request);
+    
+    // API Guard: Only providers and admins can list prescriptions
+    guardRouteAccess(context, [UserRole.provider, UserRole.admin]);
+    
+    logger.info('Get prescriptions request', { requestId, userId: context.userId, role: context.role, endpoint: '/api/prescriptions' });
+
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
+    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
+
+    // Initialize Prisma
+    const prisma = getPrisma();
+
+    // Fetch prescriptions with tenant isolation
+    const [prescriptions, total] = await Promise.all([
+      prisma.prescription.findMany({
+        where: {
+          tenantId: context.tenantId  // ← TENANT ISOLATION
+        },
+        include: { patient: true, provider: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit || 50,
+        skip: offset || 0
+      }),
+      prisma.prescription.count({
+        where: {
+          tenantId: context.tenantId  // ← TENANT ISOLATION
+        }
+      })
+    ]);
+
+    const duration = Date.now() - startTime;
+    metrics.incrementCounter('read.prescriptions.success');
+    metrics.recordDuration('read.prescriptions.duration', duration);
+    logger.info('Get prescriptions success', { requestId, userId: context.userId, count: prescriptions.length, duration });
+
+    // Return in standardized format
+    return NextResponse.json({
+      data: prescriptions,
+      pagination: {
+        total,
+        limit: limit || 50,
+        offset: offset || 0,
+        hasMore: (offset || 0) + (limit || 50) < total,
+      },
+    });
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    metrics.incrementCounter('read.prescriptions.failure');
+    logger.error('Get prescriptions failed', { requestId, duration }, error instanceof Error ? error : undefined);
+
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid or expired access token')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+
+      if (error.message.includes('Unauthorized')) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * POST /api/prescriptions - Create a new prescription (draft)
@@ -109,6 +202,13 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error) {
       // Handle specific errors
+      if (error.message.includes('Invalid or expired access token')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+
       if (error.message.includes('Forbidden')) {
         return NextResponse.json(
           { error: error.message },

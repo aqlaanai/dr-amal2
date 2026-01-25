@@ -40,6 +40,15 @@ function PatientsPage() {
   const [pagination, setPagination] = useState<PatientsResponse['pagination'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [formLoading, setFormLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: '',
+  })
 
   useEffect(() => {
     async function fetchPatients() {
@@ -50,7 +59,8 @@ function PatientsPage() {
         setPagination(response.pagination)
         setError(null)
       } catch (err: any) {
-        setError(err.error || 'Failed to load patients')
+        console.error('Failed to load patients:', err)
+        setError(err?.message || err?.error || 'Failed to load patients')
       } finally {
         setLoading(false)
       }
@@ -70,15 +80,158 @@ function PatientsPage() {
     return age
   }
 
+  const handleCreatePatient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!formData.firstName || !formData.lastName || !formData.dateOfBirth) {
+      setFormError('First name, last name, and date of birth are required')
+      return
+    }
+
+    try {
+      setFormLoading(true)
+      setFormError(null)
+      
+      console.log('=== Creating Patient ===')
+      console.log('Form data:', formData)
+      console.log('Token in storage:', localStorage.getItem('accessToken') ? 'YES' : 'NO')
+      
+      const newPatient = await ApiClient.post<Patient>('/api/patients', {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender || undefined,
+      })
+      
+      console.log('✅ Patient created successfully:', newPatient)
+      setPatients([newPatient, ...patients])
+      setFormData({
+        firstName: '',
+        lastName: '',
+        dateOfBirth: '',
+        gender: '',
+      })
+      setShowForm(false)
+    } catch (err: any) {
+      console.error('❌ Failed to create patient:', err)
+      const errorMsg = err?.message || String(err) || 'Failed to create patient'
+      console.error('Error details:', { 
+        message: errorMsg,
+        name: err?.name,
+        stack: err?.stack,
+      })
+      
+      // Filter auth-related errors - let ApiClient redirect handle them
+      if (errorMsg.includes('sign in') || errorMsg.includes('session') || errorMsg.includes('authentication')) {
+        // ApiClient should have already redirected, but show message just in case
+        setFormError('You need to sign in to create patients.')
+      } else {
+        setFormError(errorMsg)
+      }
+    } finally {
+      setFormLoading(false)
+    }
+  }
+
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title="Patient Registry"
           subtitle={pagination ? `${pagination.total} total patients` : undefined}
+          primaryAction={{
+            label: '+ New Patient',
+            onClick: () => setShowForm(!showForm),
+          }}
         />
 
         <div className="p-8">
+          {/* Create Patient Form */}
+          {showForm && (
+            <div className="mb-8 bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Register New Patient</h2>
+              
+              {formError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                  {formError}
+                </div>
+              )}
+
+              <form onSubmit={handleCreatePatient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="John"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Doe"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date of Birth *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gender
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="M">Male</option>
+                    <option value="F">Female</option>
+                    <option value="O">Other</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={formLoading}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                  >
+                    {formLoading ? 'Creating...' : 'Create Patient'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {loading && <LoadingState />}
           
           {error && (

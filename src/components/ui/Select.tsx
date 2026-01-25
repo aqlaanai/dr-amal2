@@ -1,44 +1,44 @@
-import React from 'react'
-import clsx from 'clsx'
+/**
+ * Select Component
+ */
+
+import React from 'react';
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label: string
-  error?: string
-  options: Array<{ value: string; label: string }>
+  label?: string;
+  error?: string;
+  fullWidth?: boolean;
 }
 
-export const Select: React.FC<SelectProps> = ({
-  label,
-  error,
-  options,
-  className,
-  ...props
-}) => {
-  return (
-    <div className="w-full">
-      <label className="block text-sm font-medium text-clinical-text-primary mb-2">
-        {label}
-      </label>
-      <select
-        className={clsx(
-          'w-full px-4 py-3 rounded-lg border bg-white',
-          'text-clinical-text-primary',
-          'focus:outline-none focus:ring-2 focus:ring-clinical-blue-500 focus:border-transparent',
-          'transition-all duration-200 cursor-pointer',
-          error ? 'border-clinical-danger' : 'border-clinical-border',
-          className
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, error, fullWidth = true, className = '', children, ...props }, ref) => {
+    return (
+      <div className={fullWidth ? 'w-full' : ''}>
+        {label && (
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {label}
+          </label>
         )}
-        {...props}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {error && (
-        <p className="mt-1.5 text-sm text-clinical-danger">{error}</p>
-      )}
-    </div>
-  )
-}
+        <select
+          ref={ref}
+          className={`
+            px-3 py-2 border rounded-lg
+            focus:ring-2 focus:ring-clinical-blue focus:border-clinical-blue
+            disabled:bg-gray-100 disabled:cursor-not-allowed
+            ${error ? 'border-red-500' : 'border-gray-300'}
+            ${fullWidth ? 'w-full' : ''}
+            ${className}
+          `}
+          {...props}
+        >
+          {children}
+        </select>
+        {error && (
+          <p className="mt-1 text-sm text-red-600">{error}</p>
+        )}
+      </div>
+    );
+  }
+);
+
+Select.displayName = 'Select';

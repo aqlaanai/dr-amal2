@@ -78,7 +78,7 @@ function NoteDetailPage() {
 
   if (loading) {
     return (
-      <ProtectedRoute requiredRole={['provider', 'admin']}>
+      <ProtectedRoute requiredRoles={['provider', 'admin']}>
         <AppShell>
           <div className="flex justify-center items-center h-64">
             <div className="text-gray-500">Loading note...</div>
@@ -90,7 +90,7 @@ function NoteDetailPage() {
 
   if (error || !note) {
     return (
-      <ProtectedRoute requiredRole={['provider', 'admin']}>
+      <ProtectedRoute requiredRoles={['provider', 'admin']}>
         <AppShell>
           <div className="max-w-4xl mx-auto p-8">
             <Alert type="danger" message={error || 'Note not found'} />
@@ -104,7 +104,7 @@ function NoteDetailPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         <PageHeader
           title={`Clinical Note - ${note.patientId}`}

@@ -126,7 +126,7 @@ export default function PatientDetailPage() {
   }
 
   return (
-    <ProtectedRoute requiredRole={['provider', 'admin']}>
+    <ProtectedRoute requiredRoles={['provider', 'admin']}>
       <AppShell>
         {loading && <LoadingState />}
         
